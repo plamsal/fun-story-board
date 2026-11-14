@@ -27,6 +27,7 @@
         <td>{{ c.days }}</td>
         <td>{{ c.last_day or "never" }}</td>
         <td><form method="post" action="/admin/circles/{{ c.id }}/archive">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="archived" value="{{ 0 if c.archived else 1 }}">
           <button class="ghost small" type="submit">{{ 'Restore circle' if c.archived else 'Archive circle' }}</button>
         </form><a href="/c/{{ c.id }}">Open / invite</a> · <a href="/c/{{ c.id }}/archive">stories</a></td>
