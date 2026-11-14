@@ -15,6 +15,7 @@
 Run with:  uvicorn app.main:app --reload
 """
 
+import hmac
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, Request
@@ -22,7 +23,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import admin, game, styles
+from . import admin, db, game, styles
 from .card import make_card
 from .config import settings
 from .filters import InputError
@@ -78,7 +79,24 @@ async def give_player_id(request: Request, call_next):
     """Each browser gets a random id, so a person adds words once per day."""
     cookie = request.cookies.get(PLAYER_COOKIE)
     request.state.player_id = cookie if game.valid_player_id(cookie) else game.new_player_id()
-    return await call_next(request)
+    request.state.is_admin = admin.is_signed_in(request.cookies.get(admin.COOKIE))
+    if request.url.path.startswith("/c/"):
+        circle_id = request.url.path.split("/")[2]
+        circle = game.get_circle(circle_id)
+        invite = request.query_params.get("invite", "")
+        invited = bool(circle and invite and hmac.compare_digest(invite.encode(), circle["invite_token"].encode()))
+        if not circle or not (request.state.is_admin or invited or
+                              db.is_circle_member(circle_id, request.state.player_id)):
+            return not_found(request)
+        if invited:
+            db.join_circle(circle_id, request.state.player_id)
+    response = await call_next(request)
+    if not game.valid_player_id(cookie):
+        _set_player_cookie(request, response)
+    if request.url.path.startswith(("/c/", "/admin")):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 def not_found(request: Request) -> HTMLResponse:
@@ -95,7 +113,8 @@ def catch_up(circle: dict, background: BackgroundTasks) -> None:
 def circle_urls(request: Request, circle: dict) -> dict:
     """Full links for sharing and for the link-preview picture."""
     share_url = str(request.url_for("today", circle_id=circle["id"]))
-    return {"share_url": share_url, "card_url": f"{share_url}/card.png"}
+    return {"share_url": f"{share_url}?invite={circle['invite_token']}",
+            "card_url": f"{share_url}/card.png"}
 
 
 # ---------- home ----------
@@ -125,6 +144,7 @@ async def create_circle(request: Request):
         circle = game.create_circle(form.get("name"), form.get("people_limit"), form.get("style"))
     except InputError as err:
         return _home(request, 400, form, str(err))
+    db.join_circle(circle["id"], request.state.player_id)
     response = RedirectResponse(f"/c/{circle['id']}?new=1", status_code=303)
     return remember_circle(request, response, circle)
 
@@ -153,7 +173,7 @@ async def today(request: Request, circle_id: str, background: BackgroundTasks):
     if not circle:
         return not_found(request)
     catch_up(circle, background)
-    view = game.today_view(circle, request.state.player_id)
+    view = game.today_view(circle, request.state.player_id, request.state.is_admin)
     return _today_page(request, circle, view)
 
 
@@ -166,7 +186,7 @@ async def add_words(request: Request, circle_id: str, background: BackgroundTask
     form = dict(await request.form())
     errors = game.add_words(circle, request.state.player_id, form)
     if errors:
-        view = game.today_view(circle, request.state.player_id)
+        view = game.today_view(circle, request.state.player_id, request.state.is_admin)
         return _today_page(request, circle, view, status=400, form=form, errors=errors)
 
     background.add_task(game.write_story_job, circle["id"], game.today())
@@ -193,7 +213,7 @@ async def status(request: Request, circle_id: str, background: BackgroundTasks):
     if not circle:
         return JSONResponse({"error": "not found"}, status_code=404)
     catch_up(circle, background)
-    view = game.today_view(circle, request.state.player_id)
+    view = game.today_view(circle, request.state.player_id, request.state.is_admin)
     return {"phase": view["phase"], "version": view["version"], "people": view["people"]}
 
 
@@ -217,7 +237,7 @@ async def archive(request: Request, circle_id: str, background: BackgroundTasks,
     if not circle:
         return not_found(request)
     catch_up(circle, background)
-    listing = game.archive(circle, request.state.player_id, month, style)
+    listing = game.archive(circle, request.state.player_id, month, style, request.state.is_admin)
     return page(request, "archive.html", circle=circle, archive=listing,
                 **circle_urls(request, circle))
 
@@ -245,7 +265,8 @@ def _visitor(request: Request) -> str:
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request, question: str | None = None, circle: str | None = None):
     if not admin.enabled():
-        return not_found(request)
+        return page(request, "problem.html", status=503, title="Admin setup needed",
+                    message="Set ADMIN_KEY in Render to a secret of at least 12 characters, then redeploy.")
     if not admin.is_signed_in(request.cookies.get(admin.COOKIE)):
         return page(request, "admin_login.html", error="")
     return page(request, "admin.html", data=admin.overview(question, circle))
@@ -271,3 +292,10 @@ async def admin_download(request: Request):
         return Response(status_code=404)
     return Response(admin.answers_csv(), media_type="text/csv",
                     headers={"Content-Disposition": 'attachment; filename="story-board-answers.csv"'})
+
+
+@app.post("/admin/logout")
+async def admin_logout():
+    response = RedirectResponse("/admin", status_code=303)
+    response.delete_cookie(admin.COOKIE)
+    return response

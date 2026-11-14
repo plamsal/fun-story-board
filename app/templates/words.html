@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ circle.name }} · Story Board{% endblock %}
+{% block body_attrs %}data-poll="form" data-status-url="/c/{{ circle.id }}/status"{% endblock %}
 {% block content %}
 {% if is_new %}
 <section class="card share-card">
@@ -18,6 +19,7 @@
   {% else %}{{ view.people }} friends are in today's story. Answer three questions to join and read it.{% endif %}
 </p>
 
+<p id="participant-count" data-limit="{{ view.limit }}" aria-live="polite">{{ view.people }} of {{ view.limit }} friends have joined today.</p>
 <p class="style-note">Today's story will be {{ view.style.article }} <strong>{{ view.style.label }}</strong>.</p>
 
 <form class="card" method="post" action="/c/{{ circle.id }}/words" novalidate>

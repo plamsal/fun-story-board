@@ -3,6 +3,7 @@
 {% block body_class %}wide{% endblock %}
 {% block content %}
 <h1>Admin</h1>
+<form method="post" action="/admin/logout"><button type="submit" class="ghost">Sign out</button></form>
 <p class="lede">Answers are shown without names. Opening a circle shows its stories as its members see them.</p>
 
 <div class="stats">
@@ -25,7 +26,7 @@
         <td>{{ c.entries }}</td>
         <td>{{ c.days }}</td>
         <td>{{ c.last_day or "never" }}</td>
-        <td><a href="/c/{{ c.id }}/archive">stories</a></td>
+        <td><a href="/c/{{ c.id }}">Open / invite</a> · <a href="/c/{{ c.id }}/archive">stories</a></td>
       </tr>
       {% endfor %}
     </tbody>

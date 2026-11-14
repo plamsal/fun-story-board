@@ -229,3 +229,33 @@ circle's story list as its members see it.
 - Changing a circle's style after it is created
 - A morning reminder
 - Circle streaks and a monthly keepsake
+
+
+### Private invitations and admin setup
+
+Set `ADMIN_KEY` in the Render web service environment to a secret of at least
+12 characters, save, and redeploy. Open `/admin` and enter that secret. An
+existing signed-in browser stays signed in; use **Sign out** to see the login
+form again. A missing or short key displays a setup message, never answers.
+`ANTHROPIC_API_KEY` is for story generation, not admin login.
+
+Only the signed-in admin can list all circles and review answers across them.
+The admin can open any circle to read its story without contributing, filter
+answers by question or circle, and download answers without names as CSV.
+
+Use **Copy link** or **Invite friends** inside a circle to share its private
+invitation URL. Accepting it records membership in Neon for that browser.
+Members can access only their invited circles; changing a circle ID, forging
+the remembered-circle list, or requesting status/archive/cards does not bypass
+membership checks. Invitations are bearer links: anyone they are forwarded to
+can join. This is not email-verified identity. Keep the full invitation private.
+
+On upgrade, existing contributors retain membership using their player cookie.
+Old plain circle URLs no longer admit new browsers. As admin, open existing
+circles and send fresh invitation links. No existing answers are deleted.
+Schema additions and invitation tokens are created automatically on startup.
+Keep `DATABASE_URL` pointing at the existing Neon database.
+
+Story pages check for changes every five seconds and refresh when a newer
+story is ready, including when the last friend fills the circle. Forms update
+the participant count without discarding unfinished answers.

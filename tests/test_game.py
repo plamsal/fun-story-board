@@ -4,11 +4,25 @@ import asyncio
 import dataclasses
 
 import pytest
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as BaseTestClient
 
 from app import admin, db, game, story, styles
 from app.filters import InputError, clean_answer, clean_name, clean_word
 from app.main import app
+
+class TestClient(BaseTestClient):
+    """Existing gameplay scenarios use friends who have accepted an invitation."""
+    __test__ = False
+
+    def request(self, method, url, **kwargs):
+        path = str(url).split("?")[0]
+        if path.startswith("/c/"):
+            circle_id = path.split("/")[2]
+            circle = game.get_circle(circle_id)
+            if circle:
+                super().request("GET", f"/c/{circle_id}?invite={circle['invite_token']}")
+        return super().request(method, url, **kwargs)
+
 
 # What three friends type into the form.
 FRIENDS = [
@@ -371,7 +385,7 @@ def test_story_list_shows_today_and_filters_by_month_and_style():
 def test_admin_page_needs_the_key_and_never_shows_names(monkeypatch):
     browser = TestClient(app)
     # With no ADMIN_KEY set there is no admin page at all.
-    assert browser.get("/admin").status_code == 404
+    assert browser.get("/admin").status_code == 503
     assert browser.get("/admin/answers.csv").status_code == 404
 
     monkeypatch.setattr(admin, "settings", dataclasses.replace(admin.settings, admin_key="a-long-secret-key"))

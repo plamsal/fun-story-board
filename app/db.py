@@ -18,6 +18,7 @@ The game rules never touch SQL; they only call the functions below.
 
 import json
 import os
+import secrets
 import sqlite3
 
 from .config import settings
@@ -72,6 +73,11 @@ _TABLES = [
         style        TEXT NOT NULL DEFAULT 'classic',
         created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )""",
+    """CREATE TABLE IF NOT EXISTS circle_members (
+        circle_id TEXT NOT NULL REFERENCES circles(id),
+        player_id TEXT NOT NULL,
+        PRIMARY KEY (circle_id, player_id)
+    )""",
     f"""CREATE TABLE IF NOT EXISTS contributions (
         id         {_ID},
         circle_id  TEXT NOT NULL REFERENCES circles(id),
@@ -105,6 +111,7 @@ _TABLES = [
 
 # Columns added after the first version. Older databases get them on startup.
 _ADDED_COLUMNS = [
+    ("circles", "invite_token", "TEXT NOT NULL DEFAULT ''"),
     ("circles", "style", "TEXT NOT NULL DEFAULT 'classic'"),
     ("contributions", "sentence", "TEXT NOT NULL DEFAULT ''"),
     ("stories", "style", "TEXT NOT NULL DEFAULT 'classic'"),
@@ -139,6 +146,12 @@ def create_tables() -> None:
         if column not in _column_names(table):
             _all(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
     _move_old_answers()
+    for row in _all("SELECT id FROM circles WHERE invite_token = ''"):
+        _all("UPDATE circles SET invite_token = ? WHERE id = ? AND invite_token = ''",
+             secrets.token_urlsafe(32), row["id"])
+    _all("""INSERT INTO circle_members (circle_id, player_id)
+            SELECT DISTINCT circle_id, player_id FROM contributions WHERE 1 = 1
+            ON CONFLICT (circle_id, player_id) DO NOTHING""")
 
 
 create_tables()
@@ -147,12 +160,12 @@ create_tables()
 # ---------- circles ----------
 
 def insert_circle(circle_id: str, name: str, people_limit: int, style: str = "classic") -> None:
-    _all("INSERT INTO circles (id, name, people_limit, style) VALUES (?, ?, ?, ?)",
-         circle_id, name, people_limit, style)
+    _all("INSERT INTO circles (id, name, people_limit, style, invite_token) VALUES (?, ?, ?, ?, ?)",
+         circle_id, name, people_limit, style, secrets.token_urlsafe(32))
 
 
 def get_circle(circle_id: str) -> dict | None:
-    return _one("SELECT id, name, people_limit, style FROM circles WHERE id = ?", circle_id)
+    return _one("SELECT id, name, people_limit, style, invite_token FROM circles WHERE id = ?", circle_id)
 
 
 def list_circles(circle_ids: list[str], day: str, player_id: str) -> list[dict]:
@@ -329,3 +342,13 @@ def admin_answers(limit: int = 5000) -> list[dict]:
            LIMIT ?""",
         limit,
     )
+
+
+def join_circle(circle_id: str, player_id: str) -> None:
+    _all("""INSERT INTO circle_members (circle_id, player_id) VALUES (?, ?)
+            ON CONFLICT (circle_id, player_id) DO NOTHING""", circle_id, player_id)
+
+
+def is_circle_member(circle_id: str, player_id: str) -> bool:
+    return bool(_one("SELECT 1 AS joined FROM circle_members WHERE circle_id = ? AND player_id = ?",
+                     circle_id, player_id))
