@@ -1,4 +1,4 @@
-"""Input checks: "is this really one word?" and "is it a foul word?".
+"""Input checks: "is this a word or a short sentence?" and "is it kind?".
 
 Each clean_* function returns the cleaned value or raises InputError with a
 friendly message that is shown under the field.
@@ -21,7 +21,10 @@ NAME_RE = re.compile(r"^[^\W\d_](?:[^\W\d_]|[ .'’-]){0,23}$")
 CIRCLE_RE = re.compile(r"^[^\W_](?:[^\W_]|[ .,'’&!-]){0,39}$")
 
 
-# Optional sentence: letters, numbers, spaces and everyday punctuation. Max 140 chars.
+# Longest answer to one of the three questions.
+ANSWER_MAX = 80
+
+# Sentences (answers and the message to the circle): letters, numbers, spaces and everyday punctuation. Max 140 chars.
 SENTENCE_RE = re.compile(r"^(?:[^\W_]|[ .,!?'’\"“”;:()&-]){1,140}$")
 
 
@@ -44,6 +47,22 @@ def clean_word(raw: str | None) -> str:
     if is_foul(word):
         raise InputError("Let's keep it kind. Try a different word.")
     return word
+
+
+def clean_answer(raw: str | None) -> str:
+    """An answer to one of the three questions: one word, or a short sentence."""
+    answer = " ".join((raw or "").split())
+    if not answer:
+        raise InputError("Please add a word or a short sentence.")
+    if len(answer.split()) == 1:
+        return clean_word(answer)  # single words keep the stricter word rules
+    if len(answer) > ANSWER_MAX:
+        raise InputError(f"Keep it short: up to {ANSWER_MAX} characters.")
+    if not SENTENCE_RE.match(answer):
+        raise InputError("Use letters, numbers and simple punctuation only.")
+    if is_foul(answer):
+        raise InputError("Let's keep it kind. Try different words.")
+    return answer.rstrip(".")
 
 
 def clean_name(raw: str | None) -> str:

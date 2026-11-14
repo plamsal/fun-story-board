@@ -31,7 +31,7 @@
 </article>
 
 <div class="legend">
-  <span class="chip dream">dream</span><span class="chip peace">peace</span><span class="chip love">love</span><span class="chip name">friend</span>
+  {% for kind in story.legend %}<span class="chip {{ kind.key }}">{{ kind.label }}</span>{% endfor %}<span class="chip name">friend</span>
 </div>
 
 {% if story.quotes %}

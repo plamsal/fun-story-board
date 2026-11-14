@@ -7,7 +7,7 @@
 {% if view and view.mine %}
 <p class="greeting">{{ view.greeting }}, {{ view.mine.name }}.</p>
 {% if story.my_lucky %}
-<p class="lucky"><span class="lucky-number">{{ story.my_lucky }}</span> <span>is your lucky number today.<br><small>Made from your three words and today's date.</small></span></p>
+<p class="lucky"><span class="lucky-number">{{ story.my_lucky }}</span> <span>is your lucky number today.<br><small>Made from your answers and today's date.</small></span></p>
 {% endif %}
 {% endif %}
 
@@ -52,9 +52,7 @@
     <li>
       <span class="who">{{ person.name }} <span class="lucky-small" title="Lucky number today">{{ person.lucky }}</span></span>
       <span class="chips">
-        <span class="chip dream">{{ person.dream }}</span>
-        <span class="chip peace">{{ person.peace }}</span>
-        <span class="chip love">{{ person.love }}</span>
+        {% for key, text in person.answers.items() %}<span class="chip {{ key }}">{{ text }}</span>{% endfor %}
       </span>
     </li>
     {% endfor %}

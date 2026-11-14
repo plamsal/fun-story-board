@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Story Board{% endblock %}</title>
-  {% set og_title = (circle.name ~ ": add three words, read today's story") if circle else "Story Board: three words each, one story a day" %}
-  <meta name="description" content="Add three words about your day and read a short, uplifting story written from your circle's words.">
+  {% set og_title = (circle.name ~ ": add a few words, read today's story") if circle else "Story Board: a few words each, one story a day" %}
+  <meta name="description" content="Answer three small questions and read a short, uplifting story written from your circle's words.">
   <meta property="og:title" content="{{ og_title }}">
-  <meta property="og:description" content="Three words from each friend become one short story of hope, love and boldness. Add yours.">
+  <meta property="og:description" content="A few words from each friend become one short story of hope, love and boldness. Add yours.">
   <meta property="og:type" content="website">
   {% if share_url %}<meta property="og:url" content="{{ share_url }}">{% endif %}
   {% if card_url %}
@@ -30,6 +30,10 @@
       {% endif %}
     </header>
     {% block content %}{% endblock %}
+    <footer class="foot">
+      <p>If something is weighing heavily on you, please talk to someone you trust or a local support line. A story is not a substitute for help.</p>
+      <p><a href="/privacy">Privacy: who can read what</a></p>
+    </footer>
   </main>
   <script src="/static/js/story.js" defer></script>
 </body>

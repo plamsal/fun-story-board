@@ -1,9 +1,9 @@
 # Story Board
 
-**Three words each. One story a day.**
+**A few words each. One story a day.**
 
-Friends share one link. Each morning a friend answers three small questions
-with one word each (and, if they like, a message to the circle). Claude then writes a
+Friends share one link. Each morning a friend answers three small questions,
+each with a word or a short sentence (and, if they like, a message to the circle). Claude then writes a
 short story of **hope, love and boldness** in which every friend appears by
 name, in a good light, alongside their words. The friend reads it straight
 away, before the day begins, and the story grows as more friends add theirs.
@@ -14,17 +14,23 @@ surprise each day). The story page also shows each friend's message as a
 number** for each friend (made from their own words and the date, for fun), and
 a **share card**: a picture of the closing line with no names or words on it.
 
-| Question | Feeds the story's... |
+| Question | What it gives the story |
 |---|---|
-| One word for something you are dreaming of | **Dream**: the hope it reaches for |
-| One word for what brings you peace | **Peace**: the calm that gives strength |
-| One word for someone or something you love | **Love**: the warmth it lands on |
+| What are you hoping for right now? | **Hope**: what the story reaches for |
+| What has been weighing on you lately? (optional) | **Weight**: what the friend is carrying |
+| Who or what is getting you through? | **Strength**: what meets them in the middle |
+| What would you say to a friend who feels the same? (optional) | Shown as a **quote** from them |
+
+Story Board is also a small research project: the person who runs it can read
+answers from every circle, **without names**, to understand what people hope
+for and struggle with. The form says so, and `/privacy` explains it in plain words.
 
 ## Rules of the game
 
 - A **circle** is a group of friends with its own link (`/c/<id>`). The link never changes.
-- Each person adds their first name, three words and an optional message **once per day**.
-- Foul words are blocked on the spot and the person is asked for another word.
+- Each person adds their first name and answers the questions **once per day**.
+  An answer is one word or a short sentence (up to 80 characters).
+- Foul language is blocked on the spot and the person is asked to try again.
 - As soon as you add your words, the story is rewritten to include you and you can read it.
 - Friends who have not added words yet **cannot see** today's story or anyone's words.
 - When the circle's limit is reached (3 to 12 friends, default 8) the day is closed
@@ -79,6 +85,8 @@ visitor waits about a minute while it wakes.
 | `DB_PATH` | `data/stories.db` | Where the local SQLite file is stored. |
 | `DATABASE_URL` | empty | A Postgres connection string. When set, Postgres is used instead of SQLite. |
 | `CIRCLES_PER_HOUR` | `10` | How many circles one visitor may create per hour. |
+| `ADMIN_KEY` | empty | A long secret (12+ characters) that opens `/admin`. Empty means no admin page. |
+| `CONTACT_EMAIL` | empty | Shown on the privacy page for removal requests. |
 
 `STORY_KEY` also works as a second name for `ANTHROPIC_API_KEY`.
 
@@ -98,7 +106,8 @@ fun-story-board/
 │   ├── card.py             draws the share card picture
 │   ├── sample.py           the sample story shown on the home page
 │   ├── filters.py          one-word check and foul-word filter
-│   ├── questions.py        the three daily questions (edit the wording here)
+│   ├── questions.py        the daily questions (edit the wording here)
+│   ├── admin.py            the admin page: all circles, answers without names, CSV download
 │   ├── db.py               tables and every SQL query (SQLite locally, Postgres online)
 │   ├── config.py           settings and environment variables
 │   ├── templates/          the pages, drawn in Python with Jinja2
@@ -109,6 +118,8 @@ fun-story-board/
 │   │   ├── story.html      the story page (today and past days)
 │   │   ├── _story.html     the story, quotes and matches (shared with the home page sample)
 │   │   ├── archive.html    all stories by month, with filters
+│   │   ├── privacy.html    who can read what
+│   │   ├── admin.html      the admin page (and admin_login.html, its key form)
 │   │   └── problem.html    not-found page
 │   └── static/
 │       ├── css/style.css   all styling
@@ -141,7 +152,7 @@ fun-story-board/
 
 ```
 phone: form in templates/words.html
-   │  POST /c/{id}/words   (name, dream, peace, love)
+   │  POST /c/{id}/words   (name, hope, weight, strength, quote)
    ▼
 app/main.py ──► app/game.py ──► app/filters.py   (clean + block foul words)
                     │
@@ -166,12 +177,14 @@ form ──(adds words)──► writing ──(story includes them)──► st
 
 ### How the story is checked
 
-1. `story.py` sends each friend's name, three words and optional message, plus
-   the circle's style, with the system prompt.
-2. The reply must mark words as `[[word]]` and names as `{{Name}}`, with a
+1. `story.py` gives every answer a number and sends each friend's name, answers
+   and optional message, plus the circle's style, with the system prompt.
+2. The reply must mark the place that carries each answer as `[[3|words in the
+   story]]` (a one-word answer exactly, a sentence reworded) and names as `{{Name}}`, with a
    `TITLE:` line, a closing `TODAY:` line, and optional `MATCH:` lines naming two
    friends whose words point to a similar idea.
-3. If any word or name is missing, Claude is asked once to rewrite it.
+3. Small slips are repaired in Python (`tidy_marks`). If an answer or name is
+   still missing, Claude is asked once to rewrite the story.
 4. `MATCH:` lines are kept only if they name two real friends. If Claude gives
    none, friends who chose the very same word are matched in Python.
 5. The page turns the marks into highlights and "whose word is this" credits.
@@ -181,13 +194,29 @@ form ──(adds words)──► writing ──(story includes them)──► st
 | Table | One row per | Key columns |
 |---|---|---|
 | `circles` | friend group | `id`, `name`, `people_limit`, `style` |
-| `contributions` | person per day | `circle_id`, `day`, `player_id`, `name`, `dream`, `peace`, `love`, `sentence` |
+| `contributions` | person per day | `id`, `circle_id`, `day`, `player_id`, `name`, `sentence` (their quote) |
+| `answers` | answer | `contribution_id`, `question` (e.g. `hope`), `text` |
 | `stories` | circle per day | `circle_id`, `day`, `title`, `text`, `closing`, `people`, `source`, `style`, `matches` |
 
 `stories.people` is how many friends that version includes. When it is lower
 than the number of contributions, the story is behind and gets rewritten.
 
+Answers have their own table so the questions can change without changing the
+database. Each answer remembers its question key, and retired questions stay
+listed in `questions.py` so old stories keep their labels and colours.
+
+## Admin page
+
+Set `ADMIN_KEY` in the host's environment settings, then open `/admin` and
+enter the key. It shows every circle with how much it is used, and every answer
+with its question, day and circle but **no names**. Filter by question or
+circle, or download everything as a CSV file. The "stories" link opens a
+circle's story list as its members see it.
+
 ## Privacy notes
+
+- The form tells every player that the person running the app can read answers
+  and studies them without names. `/privacy` has the full explanation.
 
 - First names, words and the optional message are sent to the Claude API so
   each friend can be a character in the story. Nothing else about a person is sent.

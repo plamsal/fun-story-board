@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Admin · Story Board{% endblock %}
+{% block content %}
+<h1>Admin</h1>
+<form class="card" method="post" action="/admin">
+  <div class="field">
+    <label for="key">Admin key</label>
+    <input type="password" id="key" name="key" autocomplete="current-password" required autofocus>
+    <p class="error" role="alert">{{ error }}</p>
+  </div>
+  <button type="submit" class="full">Open</button>
+</form>
+{% endblock %}

@@ -8,9 +8,7 @@
   <h1 class="pulse">{% if view.mine %}Writing you into the story…{% else %}Writing today's story…{% endif %}</h1>
   {% if view.mine %}
   <div class="chips center-row">
-    <span class="chip dream">{{ view.mine.dream }}</span>
-    <span class="chip peace">{{ view.mine.peace }}</span>
-    <span class="chip love">{{ view.mine.love }}</span>
+    {% for key, text in view.mine.answers.items() %}<span class="chip {{ key }}">{{ text }}</span>{% endfor %}
   </div>
   {% endif %}
   <p class="lede">This takes a few seconds. The page opens the story by itself.</p>

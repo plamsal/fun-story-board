@@ -13,9 +13,9 @@
 <p class="eyebrow">{{ view.date }}</p>
 <h1>{{ circle.name }}</h1>
 <p class="lede">
-  {% if view.people == 0 %}Be the first to add three words. Your story is written the moment you do.
-  {% elif view.people == 1 %}1 friend is in today's story. Add three words to join and read it.
-  {% else %}{{ view.people }} friends are in today's story. Add three words to join and read it.{% endif %}
+  {% if view.people == 0 %}Be the first to answer. Your story is written the moment you do.
+  {% elif view.people == 1 %}1 friend is in today's story. Answer three questions to join and read it.
+  {% else %}{{ view.people }} friends are in today's story. Answer three questions to join and read it.{% endif %}
 </p>
 
 <p class="style-note">Today's story will be {{ view.style.article }} <strong>{{ view.style.label }}</strong>.</p>
@@ -26,11 +26,13 @@
   {% for q in questions %}
   <div class="field">
     <span class="tag {{ q.key }}">{{ q.label }}</span>
-    <label for="{{ q.key }}">{{ q.ask }}</label>
-    <input type="text" id="{{ q.key }}" name="{{ q.key }}" maxlength="20" placeholder="one word"
-           value="{{ form[q.key] or '' }}" autocomplete="off" autocapitalize="none" spellcheck="false"
-           {% if errors[q.key] %}aria-invalid="true" autofocus{% endif %} required>
-    {% if errors[q.key] %}<p class="error" role="alert">{{ errors[q.key] }}</p>{% endif %}
+    <label for="{{ q.key }}">{{ q.ask }}{% if q.optional %} <span class="optional-note">(optional)</span>{% endif %}</label>
+    <input type="text" id="{{ q.key }}" name="{{ q.key }}" maxlength="80"
+           placeholder="{{ 'Optional' if q.optional else 'A word or a short sentence' }}"
+           value="{{ form[q.key] or '' }}" autocomplete="off" autocapitalize="none"
+           {% if errors[q.key] %}aria-invalid="true" autofocus{% endif %} {% if not q.optional %}required{% endif %}>
+    {% if errors[q.key] %}<p class="error" role="alert">{{ errors[q.key] }}</p>
+    {% elif q.optional %}<p class="hint">{{ q.hint }}</p>{% endif %}
   </div>
   {% endfor %}
 
@@ -54,6 +56,11 @@
   </div>
 
   <button type="submit" class="full">Write me into today's story</button>
-  <p class="hint center">Your name and words are shared with your circle and used to write the story.</p>
+  <p class="hint disclosure">
+    Your first name and answers are shared with your circle and used to write the story.
+    The person who runs Story Board can also read answers, and studies them
+    <strong>without names</strong> to understand what people hope for and struggle with.
+    <a href="/privacy">How this works</a>
+  </p>
 </form>
 {% endblock %}

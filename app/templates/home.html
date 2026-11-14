@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Story Board: three words each, one story a day{% endblock %}
+{% block title %}Story Board: a few words each, one story a day{% endblock %}
 {% block content %}
-<h1>Three words each.<br>One story a day.</h1>
-<p class="lede">Each friend adds three words. Together they become a short story of hope, love and boldness, with every friend in it. A good thing to read before the day begins.</p>
+<h1>A few words each.<br>One story a day.</h1>
+<p class="lede">Each friend answers a few small questions about what they hope for and what gets them through, in a word or a sentence. Together they become a short story of hope, love and boldness, with every friend in it. A good thing to read before the day begins.</p>
 
 <p class="row">
   <a class="button" href="#start">Start a circle</a>
@@ -31,7 +31,7 @@
 {% endif %}
 
 <h2 class="section-title" id="sample">Here is what comes out</h2>
-<p class="muted">Asha, Ben and Cai each gave three words. This is the story they read. Tap a highlighted word to see whose it is.</p>
+<p class="muted">Asha, Ben and Cai each answered the questions. This is the story they read. Tap a highlighted word to see whose it is.</p>
 <div class="sample">
 {% include "_story.html" %}
 </div>
@@ -71,7 +71,7 @@
 <section class="card" id="how">
   <h2>How it works</h2>
   <ol class="steps">
-    <li>Answer three small questions with <strong>one word each</strong>: a dream, a peace, a love. Add a message to your circle if you like.</li>
+    <li>Answer a few small questions with <strong>a word or a short sentence</strong>: what you hope for, what weighs on you, who or what gets you through. Add a line for your friends if you like.</li>
     <li>Read today's story right away. You are in it, and so are your words. You also get your lucky number for the day.</li>
     <li>The story grows through the day as more friends add theirs, and shows which friends matched.</li>
     <li>Tomorrow morning, a new story begins.</li>

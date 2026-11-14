@@ -66,7 +66,7 @@ if (poll === 'growing') {
 
 // ---- 3. share ----
 
-const shareText = "Add your three words to today's story";
+const shareText = "Add a few words to today's story";
 
 // Sharing the card picture works on phones; elsewhere this returns false.
 async function shareImage(imageUrl, url) {

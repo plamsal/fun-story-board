@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Admin · Story Board{% endblock %}
+{% block body_class %}wide{% endblock %}
+{% block content %}
+<h1>Admin</h1>
+<p class="lede">Answers are shown without names. Opening a circle shows its stories as its members see them.</p>
+
+<div class="stats">
+  <div><strong>{{ data.totals.circles }}</strong> circles</div>
+  <div><strong>{{ data.totals.entries }}</strong> entries</div>
+  <div><strong>{{ data.totals.answers }}</strong> answers</div>
+  <div><strong>{{ data.totals.stories }}</strong> stories</div>
+</div>
+
+<h2 class="month-title">Circles</h2>
+<section class="card table-card">
+  <table class="table">
+    <thead><tr><th>Circle</th><th>Style</th><th>People</th><th>Entries</th><th>Days</th><th>Last active</th><th></th></tr></thead>
+    <tbody>
+      {% for c in data.circles %}
+      <tr>
+        <td><a href="/admin?circle={{ c.id }}">{{ c.name }}</a></td>
+        <td>{{ c.style_label }}</td>
+        <td>{{ c.people }}</td>
+        <td>{{ c.entries }}</td>
+        <td>{{ c.days }}</td>
+        <td>{{ c.last_day or "never" }}</td>
+        <td><a href="/c/{{ c.id }}/archive">stories</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<h2 class="month-title">Answers{% if data.circle %} in {{ data.circle.name }}{% endif %} <span class="count">{{ data.shown }}</span></h2>
+{% set circle_part = ("&circle=" ~ data.circle.id) if data.circle else "" %}
+<nav class="filters" aria-label="Filter by question">
+  <a class="filter {{ 'on' if not data.question }}" href="/admin{{ ('?circle=' ~ data.circle.id) if data.circle }}">All</a>
+  {% for f in data.filters %}
+  <a class="filter {{ 'on' if data.question == f.key }}" href="/admin?question={{ f.key }}{{ circle_part }}">{{ f.label }} <span class="count">{{ f.count }}</span></a>
+  {% endfor %}
+  {% if data.circle %}<a class="filter" href="/admin{{ ('?question=' ~ data.question) if data.question }}">All circles</a>{% endif %}
+  <a class="button small ghost" href="/admin/answers.csv">Download CSV</a>
+</nav>
+
+<section class="card table-card">
+  {% if not data.answers %}<p class="muted">No answers yet.</p>{% else %}
+  <table class="table">
+    <thead><tr><th>Day</th><th>Question</th><th>Answer</th><th>Circle</th></tr></thead>
+    <tbody>
+      {% for a in data.answers %}
+      <tr>
+        <td class="nowrap">{{ a.day }}</td>
+        <td><span class="chip {{ a.question }}">{{ a.label }}</span></td>
+        <td>{{ a.text }}</td>
+        <td class="muted">{{ a.circle }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if data.shown > data.answers | length %}<p class="muted">Showing the newest {{ data.answers | length }}. The download has all of them.</p>{% endif %}
+  {% endif %}
+</section>
+{% endblock %}

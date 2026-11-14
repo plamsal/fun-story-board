@@ -30,6 +30,12 @@ class Settings:
     # How many circles one visitor (IP address) may create per hour.
     circles_per_hour: int = int(os.getenv("CIRCLES_PER_HOUR", "10"))
 
+    # A long secret that opens the admin page (/admin). Empty = no admin page.
+    admin_key: str = os.getenv("ADMIN_KEY", "")
+
+    # Shown on the privacy page so people can ask for their answers to be removed.
+    contact_email: str = os.getenv("CONTACT_EMAIL", "")
+
     # Claude API key: ANTHROPIC_API_KEY, or STORY_KEY as a second name for it.
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY") or os.getenv("STORY_KEY", "")
     anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")

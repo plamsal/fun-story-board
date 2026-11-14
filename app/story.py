@@ -3,12 +3,17 @@
     write_story(contributions, style)   ->  Story(title, text, closing, matches, source)
     to_paragraphs(text, contributions)  ->  pieces the page can draw
 
-`contributions` is a list of dicts: {"name", "dream", "peace", "love", "sentence"}.
+`contributions` is a list of dicts:
+    {"name": "Asha", "sentence": "her message", "answers": {"hope": "...", "strength": "..."}}
 `style` is a Style from styles.py.
 
-In the story text, each friend's word is wrapped like [[word]] and each
-friend's name like {{Name}}. That is how the page knows what to highlight
-and who to credit.
+Each answer can be one word or a short sentence. Every answer gets a number
+(see number_answers). In the story text the place that carries an answer is
+marked like [[3|the words in the story]] and each friend's name like {{Name}}.
+That is how the page knows what to highlight and who to credit. For a one-word
+answer the marked words are that exact word; for a longer answer the writer
+may reword it. (Stories saved before answers had numbers use plain [[word]];
+those still display.)
 
 Names, words and the optional message are sent to the Claude API so that
 every friend can be a character in the story. Nothing else is sent.
@@ -20,7 +25,7 @@ from dataclasses import dataclass, field
 from itertools import combinations
 
 from .config import settings
-from .questions import KEYS, QUESTIONS
+from . import questions
 from .styles import Style
 
 log = logging.getLogger(__name__)
@@ -29,33 +34,45 @@ SYSTEM_PROMPT = """You write one short story each day for a small circle of frie
 They read it in the morning, before the day begins, and it should leave them feeling \
 hopeful, loved and a little braver.
 
-Each friend gave their first name and three single words: something they dream of, \
-something that brings them peace, and someone or something they love. Some friends \
-also wrote a short message to the circle in their own words.
+Each friend gave their first name and answered a few short questions about their life \
+right now: what they hope for, what is weighing on them, who or what is getting them \
+through. The questions and each friend's answers are listed with today's request. An \
+answer may be a single word or a short sentence, and a friend may have skipped a \
+question. Some friends also wrote a short message to the circle in their own words.
 
 THE STORY
-- Its heart is three things: hope, love and boldness. Hope opens it, love holds it \
-together, and it ends with someone taking a bold step forward.
+- Its heart is three things: hope, love and boldness. It may begin with what the \
+friends are carrying, it is held together by what gets them through, and it ends with \
+someone taking a bold step toward what they hope for.
 - Every friend is a character in the story, called by their name. Show each one in a \
 warm, good light: doing something kind, brave, steady or generous. Tie each friend to \
-their own three words where it feels natural.
+their own answers.
+- Treat what weighs on a friend with tenderness and dignity. Do not make it bigger, \
+more specific or more dramatic than they wrote. Do not solve it, explain it, give \
+advice or promise it will go away. Show the friend carrying it and not carrying it \
+alone.
 - If a friend wrote a message, let it shape that friend's moment in the story. Carry \
 its meaning; do not quote it word for word (it is shown beside the story as their quote).
 - Give every friend a real moment. Nobody is a bystander, a villain, a joke or a \
 victim. No romance between the friends.
 - Do not invent private facts about the friends (jobs, family, health, age, looks, \
-religion).
+religion) beyond what they wrote.
 - You do not know anyone's gender. Never use he or she for a friend: use the name, or \
 rephrase the sentence.
 - Plain words. Tender, never sugary. No lecture and no stated moral.
-- Follow the STYLE given with today's words.
+- Follow the STYLE given with today's answers.
 
-THE WORDS AND NAMES
-- Use EVERY given word at least once, spelled exactly as given. Do not change its form.
-- Wrap each given word in double square brackets every time: [[word]].
+THE ANSWERS AND NAMES
+- Every answer has a number. Weave EVERY answer into the story and mark the place \
+like this: [[number|the words in your story]].
+- If the answer is a single word, the marked words are exactly that word, spelled as \
+given: [[4|rain]].
+- If the answer is longer, mark the short phrase of your story (2 to 8 words) that \
+carries it. You may reword it, but keep its meaning and feeling: for the answer \
+"my grandmother's cooking", [[7|the smell of her grandmother's kitchen]].
+- Every number must be marked at least once. Mark nothing that is not an answer.
 - Use EVERY name at least once, exactly as given. Wrap each name in double curly \
 braces every time: {{Name}}.
-- Do not wrap anything else.
 
 FORMAT (follow exactly)
 TITLE: a title of 3 to 6 words, no brackets or braces
@@ -66,8 +83,8 @@ TODAY: one sentence of at most 16 words that the reader can carry into their day
 No names, brackets or braces.
 
 MATCH: Name & Name | what the two share, in at most 10 words
-Write a MATCH line only when two friends' words or sentences point to the same idea \
-(the same word, or close ideas such as "home" and "family", or "ocean" and "travel"). \
+Write a MATCH line only when two friends' answers or messages point to the same idea \
+(the same word, or close ideas such as "home" and "family", or "money" and "rent"). \
 Start the reason with "both". Write up to 3 MATCH lines, one pair per line, strongest \
 first. If nothing truly matches, or there is only one friend, write no MATCH line.
 
@@ -93,18 +110,45 @@ def target_length(people: int) -> int:
     return min(320, 110 + 20 * people)
 
 
+def number_answers(contributions: list[dict]) -> list[dict]:
+    """Give every distinct answer a number, in the order friends joined.
+
+    Returns a list of:
+        {"id": 3, "text": "tea", "single": True, "givers": [("peace", "Asha"), ...]}
+    Two friends who gave the same answer share one number.
+    """
+    answers: dict[str, dict] = {}
+    for c in contributions:
+        for key, text in c["answers"].items():
+            entry = answers.setdefault(text.lower(), {
+                "id": len(answers) + 1, "text": text,
+                "single": len(text.split()) == 1, "givers": [],
+            })
+            entry["givers"].append((key, c["name"]))
+    return list(answers.values())
+
+
+def all_names(contributions: list[dict]) -> list[str]:
+    return list(dict.fromkeys(c["name"] for c in contributions))
+
+
 def build_user_prompt(contributions: list[dict], style: Style) -> str:
+    numbers = {a["text"].lower(): a["id"] for a in number_answers(contributions)}
     lines = []
     for c in contributions:
-        line = f"- {c['name']}: " + ", ".join(f"{q.label.lower()} = {c[q.key]}" for q in QUESTIONS)
+        line = f"- {c['name']}: " + "; ".join(
+            f'{questions.label(key).lower()} ({numbers[text.lower()]}) = "{text}"'
+            for key, text in c["answers"].items())
         if c.get("sentence"):
             line += f'. Their message to the circle: "{c["sentence"]}"'
         lines.append(line)
-    roles = "\n".join(f"- {q.label} words: {q.role}" for q in QUESTIONS)
+    asked = {key for c in contributions for key in c["answers"]}
+    roles = "\n".join(f'- {q.label} ("{q.ask}"): {q.role}'
+                      for q in questions.QUESTIONS if q.key in asked)
     return (
-        "Today's friends and their words:\n"
+        "Today's friends and their answers (the number in brackets is the answer's number):\n"
         + "\n".join(lines)
-        + f"\n\nHow to use the words:\n{roles}"
+        + f"\n\nThe questions, and how to use the answers:\n{roles}"
         + f"\n\nSTYLE: {style.guide}"
         + f"\n\nWrite today's story in about {target_length(len(contributions))} words."
     )
@@ -112,44 +156,61 @@ def build_user_prompt(contributions: list[dict], style: Style) -> str:
 
 # ---------- checking the result ----------
 
-def all_words(contributions: list[dict]) -> list[str]:
-    return list(dict.fromkeys(c[key].lower() for c in contributions for key in KEYS))
+ID_MARK_RE = re.compile(r"\[\[(\d+)\|(.+?)\]\]")
+PLAIN_MARK_RE = re.compile(r"\[\[(?!\d+\|)(.+?)\]\]")
 
 
-def all_names(contributions: list[dict]) -> list[str]:
-    return list(dict.fromkeys(c["name"] for c in contributions))
+def tidy_marks(text: str, answers: list[dict], names: list[str]) -> str:
+    """Repair small marking slips, so a good story is not thrown away.
 
+    - [[rain]] without a number gets its number if "rain" is an answer
+    - a one-word answer used in the story but left unmarked gets marked
+    - a name used but left unmarked gets marked
+    """
+    by_text = {a["text"].lower(): a for a in answers}
 
-def missing_items(text: str, words: list[str], names: list[str]) -> list[str]:
-    """Words and names that are not marked in the text yet."""
-    marked_words = {m.lower() for m in re.findall(r"\[\[(.+?)\]\]", text)}
-    marked_names = {m.lower() for m in re.findall(r"\{\{(.+?)\}\}", text)}
-    return [w for w in words if w not in marked_words] + [
-        n for n in names if n.lower() not in marked_names
-    ]
+    def add_number(match):
+        answer = by_text.get(match.group(1).lower())
+        return f"[[{answer['id']}|{match.group(1)}]]" if answer else match.group(0)
 
+    text = PLAIN_MARK_RE.sub(add_number, text)
 
-def mark_unmarked(text: str, words: list[str], names: list[str]) -> str:
-    """If the writer used a word or name but forgot the markers, add them."""
-    marked_words = {m.lower() for m in re.findall(r"\[\[(.+?)\]\]", text)}
-    marked_names = {m.lower() for m in re.findall(r"\{\{(.+?)\}\}", text)}
-
-    def add(item: str, left: str, right: str, flags: int = 0) -> None:
+    def mark_first(item: str, replacement, flags: int = 0) -> None:
+        """Mark the first plain use of `item`, never touching text that is already marked."""
         nonlocal text
-        pattern = rf"(?<![\w\[{{]){re.escape(item)}(?![\w\]}}])"
-        text = re.sub(pattern, lambda m: f"{left}{m.group(0)}{right}", text, count=1, flags=flags)
+        pattern = re.compile(rf"(?<!\w){re.escape(item)}(?!\w)", flags)
+        parts = MARKER_RE.split(text)
+        for i, part in enumerate(parts):
+            if not MARKER_RE.fullmatch(part) and pattern.search(part):
+                parts[i] = pattern.sub(replacement, part, count=1)
+                break
+        text = "".join(parts)
 
+    marked_names = {m.lower() for m in re.findall(r"\{\{(.+?)\}\}", text)}
     for name in names:
         if name.lower() not in marked_names:
-            add(name, "{{", "}}")
-    for word in words:
-        if word not in marked_words:
-            add(word, "[[", "]]", re.IGNORECASE)
+            mark_first(name, lambda m: f"{{{{{m.group(0)}}}}}")
+
+    marked_ids = {int(m) for m, _ in ID_MARK_RE.findall(text)}
+    for answer in answers:
+        if answer["single"] and answer["id"] not in marked_ids:
+            mark_first(answer["text"], lambda m, a=answer: f"[[{a['id']}|{m.group(0)}]]", re.IGNORECASE)
     return text
 
 
+def missing_items(text: str, answers: list[dict], names: list[str]) -> list[str]:
+    """Answers and names that are not marked in the text."""
+    marked_ids = {int(m) for m, _ in ID_MARK_RE.findall(text)}
+    marked_names = {m.lower() for m in re.findall(r"\{\{(.+?)\}\}", text)}
+    return [f'answer {a["id"]} ("{a["text"]}")' for a in answers if a["id"] not in marked_ids] + [
+        f"the name {n}" for n in names if n.lower() not in marked_names
+    ]
+
+
 def strip_marks(text: str) -> str:
-    return re.sub(r"\[\[|\]\]|\{\{|\}\}", "", text)
+    """Remove all marks, leaving plain readable text."""
+    text = re.sub(r"\[\[(?:\d+\|)?(.+?)\]\]", r"\1", text)
+    return re.sub(r"\{\{(.+?)\}\}", r"\1", text).replace("[[", "").replace("]]", "")
 
 
 def parse_reply(reply: str) -> tuple[str, str, str, list[str]]:
@@ -189,12 +250,13 @@ def parse_matches(match_lines: list[str], contributions: list[dict]) -> list[dic
 
 
 def same_word_matches(contributions: list[dict]) -> list[dict]:
-    """Pairs of friends who gave the very same word. Needs no AI."""
+    """Pairs of friends who gave the very same answer. Needs no AI."""
     matches = []
     for a, b in combinations(contributions, 2):
         if a["name"] == b["name"]:
             continue
-        shared = sorted({a[k].lower() for k in KEYS} & {b[k].lower() for k in KEYS})
+        shared = sorted({t.lower() for t in a["answers"].values()}
+                        & {t.lower() for t in b["answers"].values()})
         if shared:
             matches.append({"names": [a["name"], b["name"]],
                             "why": "both chose “" + "” and “".join(shared) + "”"})
@@ -220,31 +282,31 @@ async def _ask_claude(messages: list[dict]) -> str:
 
 
 async def _write_with_claude(contributions: list[dict], style: Style) -> Story:
-    words, names = all_words(contributions), all_names(contributions)
+    answers, names = number_answers(contributions), all_names(contributions)
     messages = [{"role": "user", "content": build_user_prompt(contributions, style)}]
 
     reply = await _ask_claude(messages)
     title, text, closing, match_lines = parse_reply(reply)
-    text = mark_unmarked(text, words, names)
-    missing = missing_items(text, words, names)
+    text = tidy_marks(text, answers, names)
+    missing = missing_items(text, answers, names)
 
-    # One retry if any friend's word or name was left out.
+    # One retry if any friend's answer or name was left out.
     if missing:
         messages += [
             {"role": "assistant", "content": reply},
             {
                 "role": "user",
-                "content": "These are missing from the story: "
-                + ", ".join(missing)
-                + ". Rewrite the whole thing in the same format so that every word and "
+                "content": "These are missing from the story or not marked: "
+                + "; ".join(missing)
+                + ". Rewrite the whole thing in the same format so that every answer and "
                 "every name is included and marked.",
             },
         ]
         title, text, closing, match_lines = parse_reply(await _ask_claude(messages))
-        text = mark_unmarked(text, words, names)
-        still_missing = missing_items(text, words, names)
+        text = tidy_marks(text, answers, names)
+        still_missing = missing_items(text, answers, names)
         if still_missing:
-            log.warning("Story is still missing: %s", ", ".join(still_missing))
+            log.warning("Story is still missing: %s", "; ".join(still_missing))
 
     matches = parse_matches(match_lines, contributions) or same_word_matches(contributions)
     return Story(title=title, text=text, closing=closing, source="claude", matches=matches)
@@ -252,9 +314,10 @@ async def _write_with_claude(contributions: list[dict], style: Style) -> Story:
 
 def _write_placeholder(contributions: list[dict], style: Style) -> Story:
     """Used only when no API key is set, so the game can be tested for free."""
+    numbers = {a["text"].lower(): a["id"] for a in number_answers(contributions)}
+    mark = lambda text: f"[[{numbers[text.lower()]}|{text}]]"  # noqa: E731
     lines = [
-        f"{{{{{c['name']}}}}} woke up dreaming of [[{c['dream']}]], found a quiet minute "
-        f"in [[{c['peace']}]], and carried [[{c['love']}]] into the day."
+        f"{{{{{c['name']}}}}} carried into the day: " + ", ".join(mark(t) for t in c["answers"].values()) + "."
         for c in contributions
     ]
     return Story(
@@ -282,14 +345,20 @@ def to_paragraphs(text: str, contributions: list[dict]) -> list[list[dict]]:
         {"type": "word", "text": "rain", "kind": "dream", "credit": "..."}
         {"type": "name", "text": "Asha", "credit": "..."}
     """
-    labels = {q.key: q.label.lower() for q in QUESTIONS}
+    answers = number_answers(contributions)
+    by_id = {a["id"]: a for a in answers}
+    by_text = {a["text"].lower(): a for a in answers}  # for older stories marked [[word]]
 
-    word_givers: dict[str, list[tuple[str, str]]] = {}  # word -> [(kind, name)]
-    name_words: dict[str, list[str]] = {}  # name (lowercase) -> their words
+    name_answers: dict[str, list[str]] = {}  # name (lowercase) -> their answers
     for c in contributions:
-        for key in KEYS:
-            word_givers.setdefault(c[key].lower(), []).append((key, c["name"]))
-        name_words.setdefault(c["name"].lower(), []).extend(c[key] for key in KEYS)
+        name_answers.setdefault(c["name"].lower(), []).extend(c["answers"].values())
+
+    def credit_for(answer: dict) -> str:
+        if answer["single"]:
+            who = " and ".join(f"{name}'s {questions.label(kind).lower()} word" for kind, name in answer["givers"])
+            return f"\u201c{answer['text']}\u201d was {who}."
+        who = " and ".join(f"{name}'s {questions.label(kind).lower()}" for kind, name in answer["givers"])
+        return f"From {who}: \u201c{answer['text']}\u201d"
 
     paragraphs = []
     for block in re.split(r"\n\s*\n", text.strip()):
@@ -298,16 +367,20 @@ def to_paragraphs(text: str, contributions: list[dict]) -> list[list[dict]]:
             if not part:
                 continue
             inner = part[2:-2]
-            if part.startswith("[[") and inner.lower() in word_givers:
-                givers = word_givers[inner.lower()]
-                credit = " and ".join(f"{name}'s {labels[kind]} word" for kind, name in givers)
-                pieces.append({"type": "word", "text": inner, "kind": givers[0][0],
-                               "credit": f"“{inner}” was {credit}."})
-            elif part.startswith("{{") and inner.lower() in name_words:
-                given = name_words[inner.lower()]
+            if part.startswith("[["):
+                number, bar, shown = inner.partition("|")
+                answer = by_id.get(int(number)) if bar and number.isdigit() else by_text.get(inner.lower())
+                shown = shown if bar and number.isdigit() else inner
+                if answer:
+                    pieces.append({"type": "word", "text": shown, "kind": answer["givers"][0][0],
+                                   "credit": credit_for(answer)})
+                else:
+                    pieces.append({"type": "text", "text": shown})  # marked by mistake
+            elif part.startswith("{{") and inner.lower() in name_answers:
+                given = name_answers[inner.lower()]
                 pieces.append({"type": "name", "text": inner,
-                               "credit": f"{inner} gave {', '.join(given[:-1])} and {given[-1]}."})
-            elif MARKER_RE.fullmatch(part):
+                               "credit": f"{inner} gave: " + " \u00b7 ".join(given)})
+            elif part.startswith("{{"):
                 pieces.append({"type": "text", "text": inner})  # marked by mistake
             else:
                 pieces.append({"type": "text", "text": part})

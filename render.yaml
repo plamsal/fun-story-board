@@ -17,3 +17,7 @@ services:
         sync: false
       - key: DATABASE_URL        # your Neon Postgres connection string (asked for when you deploy)
         sync: false
+      - key: ADMIN_KEY           # a long secret you choose; opens /admin. Leave empty for no admin page
+        sync: false
+      - key: CONTACT_EMAIL       # optional: shown on the privacy page for removal requests
+        sync: false

@@ -3,11 +3,13 @@
     GET  /                   home: sample story + create a circle
     POST /circles            create it, then go to the circle page
     GET  /c/{id}             today: add words -> wait -> read the story
-    POST /c/{id}/words       add your name, three words and optional message
+    POST /c/{id}/words       add your name, three answers and optional message
     GET  /c/{id}/status      tiny JSON the page polls while the story is written
     GET  /c/{id}/card.png    shareable picture (title + closing line)
     GET  /c/{id}/archive     all stories, by month (?month=2026-11&style=fable to filter)
     GET  /c/{id}/d/{day}     one past story
+    GET  /privacy            who can read what, in plain words
+    GET  /admin              for the person who runs the app (needs ADMIN_KEY)
     GET  /healthz            "ok" (used by the host to check the app is up)
 
 Run with:  uvicorn app.main:app --reload
@@ -20,7 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import game, styles
+from . import admin, game, styles
 from .card import make_card
 from .config import settings
 from .filters import InputError
@@ -133,6 +135,11 @@ async def default_card():
                     headers={"Cache-Control": "public, max-age=86400"})
 
 
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy(request: Request):
+    return page(request, "privacy.html", contact_email=settings.contact_email)
+
+
 @app.get("/healthz", response_class=PlainTextResponse)
 async def healthz():
     return "ok"
@@ -227,3 +234,40 @@ async def past_story(request: Request, circle_id: str, day: str):
         return not_found(request)
     return page(request, "story.html", circle=circle, story=story, view=None,
                 is_today=False, is_new=False, **circle_urls(request, circle))
+
+
+# ---------- admin (only when ADMIN_KEY is set; see admin.py) ----------
+
+def _visitor(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request, question: str | None = None, circle: str | None = None):
+    if not admin.enabled():
+        return not_found(request)
+    if not admin.is_signed_in(request.cookies.get(admin.COOKIE)):
+        return page(request, "admin_login.html", error="")
+    return page(request, "admin.html", data=admin.overview(question, circle))
+
+
+@app.post("/admin")
+async def admin_sign_in(request: Request):
+    if not admin.enabled():
+        return not_found(request)
+    form = dict(await request.form())
+    token = admin.sign_in(str(form.get("key", "")), _visitor(request))
+    if not token:
+        return page(request, "admin_login.html", status=403, error="That key did not work.")
+    response = RedirectResponse("/admin", status_code=303)
+    response.set_cookie(admin.COOKIE, token, max_age=60 * 60 * 12, httponly=True,
+                        samesite="strict", secure=request.url.scheme == "https")
+    return response
+
+
+@app.get("/admin/answers.csv")
+async def admin_download(request: Request):
+    if not admin.is_signed_in(request.cookies.get(admin.COOKIE)):
+        return Response(status_code=404)
+    return Response(admin.answers_csv(), media_type="text/csv",
+                    headers={"Content-Disposition": 'attachment; filename="story-board-answers.csv"'})

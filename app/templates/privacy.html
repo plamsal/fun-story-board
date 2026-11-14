@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Privacy · Story Board{% endblock %}
+{% block content %}
+<h1>Who can read what</h1>
+<p class="lede">Story Board is a small project that turns friends' answers into a daily story, and studies the answers, without names, to understand what people hope for and struggle with.</p>
+
+<section class="card">
+  <h2>What you give</h2>
+  <ul class="steps">
+    <li>Your first name (any name you like).</li>
+    <li>Your answers to the day's questions. You can skip the one about what is weighing on you.</li>
+    <li>An optional line for your friends.</li>
+  </ul>
+  <p class="muted">There are no accounts and no email addresses. Your browser keeps two small cookies: one so you answer once a day, and one to remember which circles you have opened.</p>
+</section>
+
+<section class="card">
+  <h2>Who sees it</h2>
+  <ul class="steps">
+    <li><strong>Your circle.</strong> Anyone with your circle's link can read the circle's stories, with names and answers. Friends who have not answered today cannot see today's story until they do, or until the day is finished.</li>
+    <li><strong>The person who runs Story Board.</strong> They can read answers from every circle. The research view and any downloads show answers <strong>without names</strong>. They can also open a circle and see its stories as its members do.</li>
+    <li><strong>Claude, an AI model made by Anthropic,</strong> receives the first names and answers of your circle in order to write the story.</li>
+  </ul>
+  <p class="muted">Other circles cannot see yours. Circle links are long and random, and there is no list of circles to browse.</p>
+</section>
+
+<section class="card">
+  <h2>How answers are studied</h2>
+  <p>Answers are read together, without names, to look for patterns: what people hope for, what weighs on them, and what gets them through. Findings may be shared in summary form. No one's name is attached to anything that is shared.</p>
+  <p class="muted">Please do not write anything you would not want your friends, or the person running the app, to read.</p>
+</section>
+
+<section class="card">
+  <h2>Removing your answers</h2>
+  {% if contact_email %}
+  <p>Write to <a href="mailto:{{ contact_email }}">{{ contact_email }}</a> with your circle's name and the day, and your answers will be removed.</p>
+  {% else %}
+  <p>Ask the person who shared the link with you. They can pass your request to the person who runs the app, and your answers will be removed.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>If you are struggling</h2>
+  <p>This is a story game, not a support service, and nobody is watching answers as they arrive. If something is weighing heavily on you, please talk to someone you trust or contact a local support line.</p>
+</section>
+{% endblock %}

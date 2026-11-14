@@ -24,8 +24,8 @@ PAPER = "#fffaf2"
 # Sunrise colours for the four corners: top-left, top-right, bottom-left, bottom-right.
 CORNERS = ["#ffdcae", "#ffcfc4", "#fbdde8", "#e2d8fa"]
 
-DEFAULT_CLOSING = "Three words each. One story a day."
-TAGLINE = "Story Board  ·  three words from each friend, one story a day"
+DEFAULT_CLOSING = "A few words each. One story a day."
+TAGLINE = "Story Board  ·  a few words from each friend, one story a day"
 
 
 def _font(size: int, italic: bool = False, weight: int = 400) -> ImageFont.FreeTypeFont:

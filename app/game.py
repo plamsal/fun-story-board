@@ -3,7 +3,8 @@ story.py writes the story.
 
 How a day works for one circle:
 
-  1. A friend adds their name, three words and (if they like) a message to the circle.
+  1. A friend adds their name, answers the day's questions (a word or a short
+     sentence each) and, if they like, adds a message to the circle.
   2. The story is rewritten to include them, and they can read it right away.
      So the first friend of the morning already gets a story, and it grows
      richer with each friend who joins.
@@ -26,10 +27,9 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from . import db, story, styles
+from . import db, questions, story, styles
 from .config import settings
-from .filters import InputError, clean_circle_name, clean_name, clean_sentence, clean_word
-from .questions import KEYS
+from .filters import InputError, clean_answer, clean_circle_name, clean_name, clean_sentence
 
 log = logging.getLogger(__name__)
 
@@ -109,9 +109,16 @@ def get_circle(circle_id: str) -> dict | None:
 
 def check_words(form: dict) -> tuple[dict, dict]:
     """Clean the form. Returns (clean values, {field: error message})."""
-    clean, errors = {}, {}
-    checks = {key: clean_word for key in KEYS} | {"name": clean_name, "sentence": clean_sentence}
-    for field, check in checks.items():
+    clean, errors = {"answers": {}}, {}
+    for q in questions.QUESTIONS:
+        raw = (form.get(q.key) or "").strip()
+        if not raw and q.optional:
+            continue  # skipped, which is fine
+        try:
+            clean["answers"][q.key] = clean_answer(raw)
+        except InputError as err:
+            errors[q.key] = str(err)
+    for field, check in {"name": clean_name, "sentence": clean_sentence}.items():
         try:
             clean[field] = check(form.get(field))
         except InputError as err:
@@ -176,10 +183,10 @@ def days_needing_story(circle: dict) -> list[str]:
 # ---------- what to show ----------
 
 def lucky_number(day: str, person: dict) -> int:
-    """A number from 1 to 99, worked out from the friend's own name and words and
+    """A number from 1 to 99, worked out from the friend's own name and answers and
     the date. The same words on the same day always give the same number. It is
     for fun: it predicts nothing."""
-    seed = "|".join([day, person["name"].lower(), *(person[key] for key in KEYS)])
+    seed = "|".join([day, person["name"].lower(), *(t.lower() for t in person["answers"].values())])
     return int.from_bytes(hashlib.sha256(seed.encode()).digest()[:4], "big") % 99 + 1
 
 
@@ -187,6 +194,7 @@ def build_story_view(saved: dict, contributions: list[dict], viewer_name: str | 
     """A saved story plus the friends in it, prepared for the page."""
     style = styles.get(saved["style"])
     people = [{**c, "lucky": lucky_number(saved["day"], c)} for c in contributions]
+    kinds = questions.in_order({key: "" for c in contributions for key in c["answers"]})
     # Put the viewer's own matches first, and say "You" instead of their name.
     matches = []
     for match in saved["matches"]:
@@ -201,6 +209,7 @@ def build_story_view(saved: dict, contributions: list[dict], viewer_name: str | 
         "closing": saved["closing"],
         "paragraphs": story.to_paragraphs(saved["text"], contributions),
         "people": people,
+        "legend": [{"key": key, "label": questions.label(key).lower()} for key in kinds],
         "quotes": [{"name": p["name"], "text": p["sentence"]} for p in people if p.get("sentence")],
         "my_lucky": next((p["lucky"] for p in people if p["name"] == viewer_name), None),
         "version": saved["people"],
