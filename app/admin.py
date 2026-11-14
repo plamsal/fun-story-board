@@ -91,3 +91,9 @@ def answers_csv() -> str:
             text = "'" + text
         writer.writerow([a["day"], a["circle_id"], a["circle"], a["question"], text])
     return out.getvalue()
+
+
+def csrf_token(cookie: str) -> str:
+    """Bind form submissions to the authenticated admin session."""
+    return hmac.new(settings.admin_key.encode(),
+                    ("archive-form:" + cookie).encode(), hashlib.sha256).hexdigest()

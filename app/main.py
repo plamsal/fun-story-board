@@ -274,7 +274,8 @@ async def admin_page(request: Request, question: str | None = None, circle: str 
                     message="Set ADMIN_KEY in Render to a secret of at least 12 characters, then redeploy.")
     if not admin.is_signed_in(request.cookies.get(admin.COOKIE)):
         return page(request, "admin_login.html", error="")
-    return page(request, "admin.html", data=admin.overview(question, circle))
+    return page(request, "admin.html", data=admin.overview(question, circle),
+                csrf_token=admin.csrf_token(request.cookies[admin.COOKIE]))
 
 
 @app.post("/admin")
@@ -309,12 +310,14 @@ async def admin_logout():
 @app.post("/admin/circles/{circle_id}/archive")
 async def admin_archive_circle(request: Request, circle_id: str):
     if not admin.is_signed_in(request.cookies.get(admin.COOKIE)):
-        return Response(status_code=403)
-    origin = request.headers.get("origin")
-    if origin and origin != str(request.base_url).rstrip("/"):
-        return Response(status_code=403)
+        return RedirectResponse("/admin", status_code=303)
+    form = await request.form()
+    submitted = str(form.get("csrf_token", ""))
+    expected = admin.csrf_token(request.cookies[admin.COOKIE])
+    if not hmac.compare_digest(submitted.encode(), expected.encode()):
+        return page(request, "problem.html", status=403, title="Please refresh Admin",
+                    message="Open /admin again and retry the archive action from the refreshed page.")
     if not game.get_circle(circle_id):
         return not_found(request)
-    form = await request.form()
     db.set_circle_archived(circle_id, form.get("archived") == "1")
     return RedirectResponse("/admin", status_code=303)
