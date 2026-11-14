@@ -5,7 +5,7 @@
 <p class="lede">Each friend answers a few small questions about what they hope for and what gets them through, in a word or a sentence. Together they become a short story of hope, love and boldness, with every friend in it. A good thing to read before the day begins.</p>
 
 <p class="row">
-  <a class="button" href="#start">Start a circle</a>
+  {% if request.state.is_admin %}<a class="button" href="#start">Start a circle</a>{% else %}<p class="muted">Have an invitation? Open your circle’s private link to read and join its story.</p>{% endif %}
   <a class="button ghost" href="#sample">See a sample story</a>
 </p>
 
@@ -41,9 +41,11 @@
 {% include "_story.html" %}
 </div>
 
+{% if request.state.is_admin %}
 <section class="card" id="start">
   <h2>Start a circle</h2>
   <form method="post" action="/circles" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="field">
       <label for="name">Name your circle</label>
       <input type="text" id="name" name="name" maxlength="40" placeholder="College friends"
@@ -73,6 +75,7 @@
   </form>
 </section>
 
+{% endif %}
 <section class="card" id="how">
   <h2>How it works</h2>
   <ol class="steps">
