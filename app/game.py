@@ -229,7 +229,7 @@ def story_view(circle: dict, day: str, viewer_name: str | None = None) -> dict |
     return build_story_view(saved, included, viewer_name)
 
 
-def today_view(circle: dict, player_id: str | None) -> dict:
+def today_view(circle: dict, player_id: str | None, is_admin: bool = False) -> dict:
     """Everything the today page needs for this visitor."""
     day = today()
     people = db.count_people(circle["id"], day)
@@ -239,7 +239,9 @@ def today_view(circle: dict, player_id: str | None) -> dict:
     version = saved["people"] if saved else 0
     full = people >= limit
 
-    if mine:
+    if is_admin and saved:
+        phase = "story"
+    elif mine:
         # Ready once the story includes this friend.
         phase = "story" if version >= mine["position"] else "writing"
     elif full:
@@ -264,14 +266,14 @@ def today_view(circle: dict, player_id: str | None) -> dict:
 
 
 def archive(circle: dict, player_id: str | None = None,
-            month: str | None = None, style: str | None = None) -> dict:
+            month: str | None = None, style: str | None = None, is_admin: bool = False) -> dict:
     """Past stories, grouped by month, with optional month and style filters.
 
     Today's story is listed too, but only for a visitor who may read it
     (they added words today, or the day is closed).
     """
     day = today()
-    can_read_today = today_view(circle, player_id)["phase"] == "story"
+    can_read_today = today_view(circle, player_id, is_admin)["phase"] == "story"
     rows = [s for s in db.list_stories(circle["id"], up_to_day=day)
             if s["day"] < day or can_read_today]
 
@@ -337,7 +339,7 @@ def remembered_ids(cookie: str | None, add: str | None = None) -> list[str]:
 
 def your_circles(cookie: str | None, player_id: str | None) -> list[dict]:
     """The circles this browser has opened, for the home page."""
-    ids = remembered_ids(cookie)
+    ids = [i for i in remembered_ids(cookie) if db.is_circle_member(i, player_id or "")]
     found = {c["id"]: c for c in db.list_circles(ids, today(), player_id or "")}
     circles = []
     for circle_id in ids:

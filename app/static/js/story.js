@@ -35,7 +35,7 @@ const { poll, statusUrl, version } = document.body.dataset;
 
 async function check() {
   try {
-    const res = await fetch(statusUrl, { headers: { accept: 'application/json' } });
+    const res = await fetch(statusUrl, { cache: 'no-store', headers: { accept: 'application/json' } });
     return res.ok ? await res.json() : null;
   } catch {
     return null; // offline for a moment; try again next time
@@ -59,9 +59,9 @@ if (poll === 'growing') {
     const status = await check();
     if (status && status.phase === 'story' && status.version > Number(version)) {
       clearInterval(timer);
-      document.getElementById('update').hidden = false;
+      location.reload();
     }
-  }, 20000);
+  }, 5000);
 }
 
 // ---- 3. share ----
@@ -96,4 +96,14 @@ for (const button of document.querySelectorAll('[data-share]')) {
       /* share sheet closed */
     }
   });
+}
+
+// Update participant counts while an invited friend fills in their answers.
+if (poll === 'form') {
+  setInterval(async () => {
+    const status = await check();
+    const count = document.getElementById('participant-count');
+    if (status && count) count.textContent = `${status.people} of ${count.dataset.limit} friends have joined today.`;
+    if (status && status.phase !== 'form') location.reload();
+  }, 5000);
 }

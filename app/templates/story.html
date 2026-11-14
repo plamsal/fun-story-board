@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ story.title }} · {{ circle.name }}{% endblock %}
 {% block body_class %}reading{% endblock %}
-{% block body_attrs %}{% if view and not view.full %}data-poll="growing" data-status-url="/c/{{ circle.id }}/status" data-version="{{ story.version }}"{% endif %}{% endblock %}
+{% block body_attrs %}{% if view %}data-poll="growing" data-status-url="/c/{{ circle.id }}/status" data-version="{{ story.version }}"{% endif %}{% endblock %}
 {% block content %}
 <p class="eyebrow">{{ story.date }} · {{ circle.name }}</p>
 {% if view and view.mine %}
