@@ -9,27 +9,6 @@
   <a class="button ghost" href="#sample">See a sample story</a>
 </p>
 
-{% if your_circles %}
-<section class="card your-circles">
-  <h2>Your circles</h2>
-  <ul class="list">
-    {% for c in your_circles %}
-    <li>
-      <a href="/c/{{ c.id }}">
-        <span class="list-title">{{ c.name }}</span>
-        <span class="preview">
-          {% if c.joined %}You are in today's story · {{ c.people }} of {{ c.limit }} friends
-          {% elif c.full %}Today's story is finished · read it
-          {% elif c.people %}{{ c.people }} of {{ c.limit }} friends today · add your words
-          {% else %}No one yet today · be the first{% endif %}
-        </span>
-      </a>
-    </li>
-    {% endfor %}
-  </ul>
-</section>
-{% endif %}
-
 <section class="benefits" aria-label="Your daily experience">
 <div><span>01 · CREATE</span><h2>A story starring you</h2><p>A little imagination, a little laughter, and a piece of everyone.</p></div>
 <div><span>02 · CONNECT</span><h2>See their perspective</h2><p>Discover what your friends hope for and what keeps them going.</p></div>
