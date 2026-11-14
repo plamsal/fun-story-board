@@ -125,8 +125,6 @@ def _home(request: Request, status: int = 200, form: dict | None = None, error: 
     return page(request, "home.html", status=status, limits=limits, style_choices=styles.CHOICES,
                 form=form or {}, error=error, story=sample_story(), view=None,
                 csrf_token=admin.csrf_token(request.cookies[admin.COOKIE]) if request.state.is_admin else "",
-                your_circles=game.your_circles(request.cookies.get(CIRCLES_COOKIE),
-                                               request.state.player_id),
                 card_url=str(request.url_for("default_card")))
 
 
