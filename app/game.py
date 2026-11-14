@@ -3,7 +3,7 @@ story.py writes the story.
 
 How a day works for one circle:
 
-  1. A friend adds their name and three words.
+  1. A friend adds their name, three words and (if they like) one sentence.
   2. The story is rewritten to include them, and they can read it right away.
      So the first friend of the morning already gets a story, and it grows
      richer with each friend who joins.
@@ -25,9 +25,9 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from . import db, story
+from . import db, story, styles
 from .config import settings
-from .filters import InputError, clean_circle_name, clean_name, clean_word
+from .filters import InputError, clean_circle_name, clean_name, clean_sentence, clean_word
 from .questions import KEYS
 
 log = logging.getLogger(__name__)
@@ -38,6 +38,7 @@ DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 _writing: set[tuple[str, str]] = set()  # (circle, day) stories being written now
 _last_failure: dict[tuple[str, str], float] = {}
+_circles_made: dict[str, list[float]] = {}  # visitor -> times they created a circle
 
 
 # ---------- time ----------
@@ -74,16 +75,28 @@ def valid_player_id(player_id: str | None) -> bool:
     return bool(player_id and PLAYER_ID_RE.match(player_id))
 
 
-def create_circle(name: str | None, people_limit: str | int | None) -> dict:
+def allow_new_circle(visitor: str) -> bool:
+    """A simple brake so one visitor cannot create circles without end."""
+    hour_ago = time.monotonic() - 3600
+    recent = [t for t in _circles_made.get(visitor, []) if t > hour_ago]
+    if len(recent) >= settings.circles_per_hour:
+        _circles_made[visitor] = recent
+        return False
+    _circles_made[visitor] = recent + [time.monotonic()]
+    return True
+
+
+def create_circle(name: str | None, people_limit: str | int | None, style: str | None = None) -> dict:
     clean = clean_circle_name(name)
     try:
         limit = int(people_limit or settings.default_people_limit)
     except ValueError:
         limit = settings.default_people_limit
     limit = max(settings.min_people_limit, min(settings.max_people_limit, limit))
+    style = style if styles.is_valid(style) else "classic"
 
     circle_id = "".join(secrets.choice(ID_ALPHABET) for _ in range(8))
-    db.insert_circle(circle_id, clean, limit)
+    db.insert_circle(circle_id, clean, limit, style)
     return db.get_circle(circle_id)
 
 
@@ -96,15 +109,12 @@ def get_circle(circle_id: str) -> dict | None:
 def check_words(form: dict) -> tuple[dict, dict]:
     """Clean the form. Returns (clean values, {field: error message})."""
     clean, errors = {}, {}
-    for key in KEYS:
+    checks = {key: clean_word for key in KEYS} | {"name": clean_name, "sentence": clean_sentence}
+    for field, check in checks.items():
         try:
-            clean[key] = clean_word(form.get(key))
+            clean[field] = check(form.get(field))
         except InputError as err:
-            errors[key] = str(err)
-    try:
-        clean["name"] = clean_name(form.get("name"))
-    except InputError as err:
-        errors["name"] = str(err)
+            errors[field] = str(err)
     return clean, errors
 
 
@@ -142,12 +152,14 @@ async def write_story_job(circle_id: str, day: str) -> None:
 
     _writing.add(key)
     try:
+        circle = db.get_circle(circle_id)
+        style = styles.style_for_day(circle["style"], circle_id, day)
         # Loop in case another friend joins while the story is being written.
         while needs_story(circle_id, day):
             contributions = db.list_contributions(circle_id, day)
-            result = await story.write_story(contributions)
+            result = await story.write_story(contributions, style)
             db.save_story(circle_id, day, result.title, result.text, result.closing,
-                          len(contributions), result.source)
+                          len(contributions), result.source, style.key, result.matches)
         _last_failure.pop(key, None)
     except Exception:
         log.exception("Story failed for circle %s on %s", circle_id, day)
@@ -162,24 +174,38 @@ def days_needing_story(circle: dict) -> list[str]:
 
 # ---------- what to show ----------
 
-def story_view(circle: dict, day: str) -> dict | None:
-    """The saved story for a day, prepared for the page."""
+def build_story_view(saved: dict, contributions: list[dict], viewer_name: str | None = None) -> dict:
+    """A saved story plus the friends in it, prepared for the page."""
+    style = styles.get(saved["style"])
+    # Put the viewer's own matches first, and say "You" instead of their name.
+    matches = []
+    for match in saved["matches"]:
+        mine = viewer_name in match["names"]
+        names = ["You" if n == viewer_name else n for n in match["names"]]
+        matches.append({"names": sorted(names, key=lambda n: n != "You"), "why": match["why"], "mine": mine})
+    matches.sort(key=lambda m: not m["mine"])
+    return {
+        "day": saved["day"],
+        "date": nice_date(saved["day"]),
+        "title": saved["title"],
+        "closing": saved["closing"],
+        "paragraphs": story.to_paragraphs(saved["text"], contributions),
+        "people": contributions,
+        "version": saved["people"],
+        "source": saved["source"],
+        "style": style.key,
+        "kind": f"{style.article} {style.label}",  # "a fable", "an adventure"
+        "matches": matches,
+    }
+
+
+def story_view(circle: dict, day: str, viewer_name: str | None = None) -> dict | None:
     saved = db.get_story(circle["id"], day)
     if not saved:
         return None
-    contributions = db.list_contributions(circle["id"], day)
     # Only credit the friends this version of the story includes.
-    included = contributions[: saved["people"]]
-    return {
-        "day": day,
-        "date": nice_date(day),
-        "title": saved["title"],
-        "closing": saved["closing"],
-        "paragraphs": story.to_paragraphs(saved["text"], included),
-        "people": included,
-        "version": saved["people"],
-        "source": saved["source"],
-    }
+    included = db.list_contributions(circle["id"], day)[: saved["people"]]
+    return build_story_view(saved, included, viewer_name)
 
 
 def today_view(circle: dict, player_id: str | None) -> dict:
@@ -210,8 +236,9 @@ def today_view(circle: dict, player_id: str | None) -> dict:
         "full": full,
         "mine": mine,
         "version": version,
-        "story": story_view(circle, day) if phase == "story" else None,
+        "story": story_view(circle, day, mine["name"] if mine else None) if phase == "story" else None,
         "greeting": greeting(),
+        "style": styles.style_for_day(circle["style"], circle["id"], day),
     }
 
 
@@ -222,6 +249,7 @@ def archive(circle: dict) -> list[dict]:
             "date": nice_date(s["day"]),
             "title": s["title"],
             "people": s["people"],
+            "kind": styles.get(s["style"]).label,
             "preview": story.plain_text(s["text"])[:120],
         }
         for s in db.list_stories(circle["id"], before_day=today())
@@ -233,3 +261,13 @@ def past_story(circle: dict, day: str) -> dict | None:
     if not DAY_RE.match(day or "") or day >= today():
         return None
     return story_view(circle, day)
+
+
+def card_text(circle: dict, day: str | None = None) -> dict | None:
+    """Title and closing line for the share card (no names, no words)."""
+    if day and not DAY_RE.match(day):
+        return None
+    saved = db.get_story(circle["id"], day) if day else db.get_latest_story(circle["id"])
+    if not saved or not saved["closing"]:
+        return None
+    return {"title": saved["title"], "closing": saved["closing"], "date": nice_date(saved["day"])}

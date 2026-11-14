@@ -3,10 +3,15 @@
 **Three words each. One story a day.**
 
 Friends share one link. Each morning a friend answers three small questions
-with one word each. Claude then writes a short story of **hope, love and
-boldness** in which every friend appears by name, in a good light, alongside
-their words. The friend reads it straight away, before the day begins, and the
-story grows as more friends add theirs.
+with one word each (and, if they like, one sentence). Claude then writes a
+short story of **hope, love and boldness** in which every friend appears by
+name, in a good light, alongside their words. The friend reads it straight
+away, before the day begins, and the story grows as more friends add theirs.
+
+Each circle picks a **style** (heartfelt, fable, adventure, space, poem, or a
+surprise each day). The story page also shows which friends **matched** on a
+similar idea, and a **share card**: a picture of the closing line with no
+names or words on it.
 
 | Question | Feeds the story's... |
 |---|---|
@@ -17,7 +22,7 @@ story grows as more friends add theirs.
 ## Rules of the game
 
 - A **circle** is a group of friends with its own link (`/c/<id>`). The link never changes.
-- Each person adds their first name and three words **once per day**.
+- Each person adds their first name, three words and an optional sentence **once per day**.
 - Foul words are blocked on the spot and the person is asked for another word.
 - As soon as you add your words, the story is rewritten to include you and you can read it.
 - Friends who have not added words yet **cannot see** today's story or anyone's words.
@@ -28,11 +33,15 @@ story grows as more friends add theirs.
 ## Run it
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-cp .env.example .env            # then put your Claude API key in .env
+cp .env.example .env            # Windows: Copy-Item .env.example .env
 uvicorn app.main:app --reload   # http://localhost:8000
 ```
+
+The key is read from an environment variable named `STORY_KEY`
+(`export STORY_KEY=...`, or `$env:STORY_KEY="..."` in PowerShell), or you can
+paste it into `.env` directly.
 
 Without an API key the game still works end to end and writes a plain
 placeholder story, which is handy for testing.
@@ -41,6 +50,21 @@ placeholder story, which is handy for testing.
 pytest                          # plays a full day automatically
 ```
 
+## Put it online (Render + Neon, both free)
+
+Free hosts wipe local files, so online the app keeps its data in Postgres.
+
+1. **Database:** create a free project at neon.com and copy its connection
+   string (it starts with `postgresql://`).
+2. **App:** at render.com choose **New > Blueprint** and pick this repo. Render
+   reads `render.yaml` and asks for two values: `ANTHROPIC_API_KEY` (your Claude
+   key) and `DATABASE_URL` (the Neon string).
+3. Open the `onrender.com` address Render gives you. The tables are created on
+   first start.
+
+On the free plan the app sleeps after 15 minutes without visitors; the next
+visitor waits about a minute while it wakes.
+
 ### Settings (`.env`)
 
 | Name | Default | What it does |
@@ -48,7 +72,11 @@ pytest                          # plays a full day automatically
 | `ANTHROPIC_API_KEY` | empty | Your Claude key. Empty means placeholder stories. |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Which Claude model writes the story. |
 | `STORY_TIMEZONE` | `America/New_York` | The day rolls over at midnight here. |
-| `DB_PATH` | `data/stories.db` | Where the SQLite file is stored. |
+| `DB_PATH` | `data/stories.db` | Where the local SQLite file is stored. |
+| `DATABASE_URL` | empty | A Postgres connection string. When set, Postgres is used instead of SQLite. |
+| `CIRCLES_PER_HOUR` | `10` | How many circles one visitor may create per hour. |
+
+`STORY_KEY` also works as a second name for `ANTHROPIC_API_KEY`.
 
 The `.env` file is ignored by git. Never commit your key.
 
@@ -62,25 +90,31 @@ fun-story-board/
 │   ├── main.py             web server: every page route (start here)
 │   ├── game.py             the rules: who sees what, when the story is rewritten
 │   ├── story.py            the story prompt, the Claude call, and the checks on the result
+│   ├── styles.py           the story styles a circle can choose (add one here)
+│   ├── card.py             draws the share card picture
+│   ├── sample.py           the sample story shown on the home page
 │   ├── filters.py          one-word check and foul-word filter
 │   ├── questions.py        the three daily questions (edit the wording here)
-│   ├── db.py               SQLite tables and every SQL query
+│   ├── db.py               tables and every SQL query (SQLite locally, Postgres online)
 │   ├── config.py           settings and environment variables
 │   ├── templates/          the pages, drawn in Python with Jinja2
 │   │   ├── base.html       shared frame: header, link-preview text
-│   │   ├── home.html       create a circle
-│   │   ├── words.html      the three questions + name
+│   │   ├── home.html       sample story + create a circle
+│   │   ├── words.html      the three questions, name, optional sentence
 │   │   ├── writing.html    "writing you into the story…"
-│   │   ├── story.html      the reading view (today and past days)
+│   │   ├── story.html      the story page (today and past days)
+│   │   ├── _story.html     the story itself + matches (shared with the home page sample)
 │   │   ├── archive.html    list of past stories
 │   │   └── problem.html    not-found page
 │   └── static/
 │       ├── css/style.css   all styling
-│       └── js/story.js     tap-a-word credits, auto-open when written, share button
+│       ├── fonts/          Lora (open licence), used to draw the share card
+│       └── js/story.js     tap-a-word credits, auto-open when written, share buttons
 ├── tests/
 │   ├── conftest.py         test settings (in-memory database, no API key)
 │   └── test_game.py        full-day playthrough + checks for filters and story parsing
 ├── requirements.txt
+├── render.yaml             how Render runs the app
 ├── .env.example            template for your settings
 └── README.md
 ```
@@ -90,7 +124,10 @@ fun-story-board/
 | To change... | Edit |
 |---|---|
 | The tone, themes or length of the story | `SYSTEM_PROMPT` and `target_length` in `app/story.py` |
-| The questions | `app/questions.py` |
+| The questions, or the optional sentence prompt | `app/questions.py` |
+| The story styles | `app/styles.py` |
+| The sample on the home page | `app/sample.py` |
+| How the share card looks | `app/card.py` |
 | Which words are blocked or allowed | `ALLOWED_WORDS` in `app/filters.py` |
 | Circle size limits, timezone, model | `app/config.py` or `.env` |
 | How the story page looks | `app/templates/story.html` and the "story reading view" part of `style.css` |
@@ -124,32 +161,36 @@ form ──(adds words)──► writing ──(story includes them)──► st
 
 ### How the story is checked
 
-1. `story.py` sends each friend's name and three words with the system prompt.
+1. `story.py` sends each friend's name, three words and optional sentence, plus
+   the circle's style, with the system prompt.
 2. The reply must mark words as `[[word]]` and names as `{{Name}}`, with a
-   `TITLE:` line and a closing `TODAY:` line.
+   `TITLE:` line, a closing `TODAY:` line, and optional `MATCH:` lines naming two
+   friends whose words point to a similar idea.
 3. If any word or name is missing, Claude is asked once to rewrite it.
-4. The page turns the marks into highlights and "whose word is this" credits.
+4. `MATCH:` lines are kept only if they name two real friends. If Claude gives
+   none, friends who chose the very same word are matched in Python.
+5. The page turns the marks into highlights and "whose word is this" credits.
 
 ### Data model
 
 | Table | One row per | Key columns |
 |---|---|---|
-| `circles` | friend group | `id`, `name`, `people_limit` |
-| `contributions` | person per day | `circle_id`, `day`, `player_id`, `name`, `dream`, `peace`, `love` |
-| `stories` | circle per day | `circle_id`, `day`, `title`, `text`, `closing`, `people`, `source` |
+| `circles` | friend group | `id`, `name`, `people_limit`, `style` |
+| `contributions` | person per day | `circle_id`, `day`, `player_id`, `name`, `dream`, `peace`, `love`, `sentence` |
+| `stories` | circle per day | `circle_id`, `day`, `title`, `text`, `closing`, `people`, `source`, `style`, `matches` |
 
 `stories.people` is how many friends that version includes. When it is lower
 than the number of contributions, the story is behind and gets rewritten.
 
 ## Privacy notes
 
-- First names and words are sent to the Claude API so each friend can be a
-  character in the story. Nothing else about a person is sent.
+- First names, words and the optional sentence are sent to the Claude API so
+  each friend can be a character in the story. Nothing else about a person is sent.
+- The share card and the link preview show only the title and closing line.
 - No accounts. A random id in a browser cookie keeps it to one entry per person per day.
 
 ## Not built yet
 
-- Hosting (the SQLite file needs a host with a persistent disk, or a swap to a hosted database in `db.py`)
-- A picture for link previews on Facebook and LinkedIn (titles and descriptions already work)
-- Rate limiting on circle creation
+- Changing a circle's style after it is created
 - A morning reminder
+- Circle streaks and a monthly keepsake

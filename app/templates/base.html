@@ -10,6 +10,12 @@
   <meta property="og:description" content="Three words from each friend become one short story of hope, love and boldness. Add yours.">
   <meta property="og:type" content="website">
   {% if share_url %}<meta property="og:url" content="{{ share_url }}">{% endif %}
+  {% if card_url %}
+  <meta property="og:image" content="{{ card_url }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  {% endif %}
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body class="{% block body_class %}{% endblock %}" {% block body_attrs %}{% endblock %}>

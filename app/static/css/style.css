@@ -213,6 +213,42 @@ mark.name.picked { outline-color: var(--name); }
 .list .list-title { font-family: var(--serif); font-size: 1.25rem; display: block; }
 .list .preview { color: var(--muted); display: block; font-size: 0.93rem; }
 
+/* ---- style picker, sample, matches, share card ---- */
+
+.row { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
+.section-title { font-size: 1.5rem; margin-top: 2.2rem; }
+.sample { margin-top: 1rem; }
+.style-note { color: var(--muted); margin: -0.8rem 0 1.2rem; }
+
+fieldset.styles { border: 0; padding: 0; margin: 0 0 1.35rem; }
+fieldset.styles legend { font-family: var(--serif); font-size: 1.2rem; padding: 0; margin-bottom: 0.5rem; }
+.style-option {
+  display: flex; align-items: flex-start; gap: 0.6rem; font-family: var(--sans); font-size: 0.97rem;
+  line-height: 1.35; padding: 0.65rem 0.8rem; margin: 0 0 0.4rem; border: 1.5px solid var(--line);
+  border-radius: 12px; background: #fff; cursor: pointer;
+}
+.style-option input { margin-top: 0.2rem; accent-color: var(--dream); }
+.style-option:has(input:checked) { border-color: var(--dream); background: var(--dream-bg); }
+
+.tag.optional { background: #ece6da; color: var(--muted); }
+
+.story.poem { white-space: pre-line; text-align: center; font-size: 1.18rem; line-height: 1.6; }
+
+.matches { background: linear-gradient(135deg, #fff6e2, #fdebf0); }
+.match-list { list-style: none; margin: 0; padding: 0; }
+.match-list li { padding: 0.55rem 0; border-bottom: 1px solid var(--line); }
+.match-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.match-list .pair { display: block; font-family: var(--serif); font-size: 1.2rem; font-weight: 600; }
+.match-list .amp { color: var(--love); font-style: italic; font-weight: 400; }
+.match-list .why { color: var(--muted); }
+.match-list li.mine .why { color: var(--ink); }
+
+.card-image {
+  display: block; width: 100%; height: auto; border-radius: 12px; margin: 0.8rem 0;
+  border: 1px solid var(--line);
+}
+.people .said { display: block; margin-top: 0.4rem; font-family: var(--serif); font-style: italic; color: var(--muted); }
+
 @media (prefers-reduced-motion: reduce) {
   .pulse, .quill, .story p, .closing { animation: none; }
 }

@@ -1,0 +1,49 @@
+{# The story itself. Used by story.html and by the sample on home.html. #}
+<article class="story-page">
+  <div class="ornament" aria-hidden="true">✦</div>
+  <h1 class="story-title">{{ story.title }}</h1>
+  <p class="byline">{{ story.kind | capitalize }} for {{ story.people | map(attribute='name') | and_join }}</p>
+
+  <div class="story {{ story.style }}">
+    {% for paragraph in story.paragraphs %}
+    <p class="{% if loop.first and paragraph[0].type == 'text' %}dropcap{% endif %}" style="--i: {{ loop.index0 }}">
+      {%- for piece in paragraph -%}
+        {%- if piece.type == 'word' -%}
+          <mark class="{{ piece.kind }}" tabindex="0" role="button" data-credit="{{ piece.credit }}">{{ piece.text }}</mark>
+        {%- elif piece.type == 'name' -%}
+          <mark class="name" tabindex="0" role="button" data-credit="{{ piece.credit }}">{{ piece.text }}</mark>
+        {%- else -%}
+          {{ piece.text }}
+        {%- endif -%}
+      {%- endfor -%}
+    </p>
+    {% endfor %}
+  </div>
+
+  {% if story.closing %}
+  <aside class="closing" style="--i: {{ story.paragraphs | length }}">
+    <span class="closing-label">Carry this into your day</span>
+    <p>{{ story.closing }}</p>
+  </aside>
+  {% endif %}
+
+  <p class="credit" id="credit" aria-live="polite">Tap a highlighted word or name to see whose it is.</p>
+</article>
+
+<div class="legend">
+  <span class="chip dream">dream</span><span class="chip peace">peace</span><span class="chip love">love</span><span class="chip name">friend</span>
+</div>
+
+{% if story.matches %}
+<section class="card matches">
+  <h2>{{ 'You matched' if story.matches[0].mine else 'Friends who matched' }}</h2>
+  <ul class="match-list">
+    {% for match in story.matches %}
+    <li class="{{ 'mine' if match.mine }}">
+      <span class="pair">{{ match.names[0] }} <span class="amp">&amp;</span> {{ match.names[1] }}</span>
+      <span class="why">{{ match.why }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}

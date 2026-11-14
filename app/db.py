@@ -1,105 +1,158 @@
-"""Storage. One SQLite file, three tables.
+"""Storage. Three tables, and every SQL query in the project.
 
     circles        a group of friends sharing one link
-    contributions  one row per person per day (name + three words)
+    contributions  one row per person per day (name, three words, optional sentence)
     stories        one story per circle per day (rewritten as friends join)
 
-All SQL lives in this file, so the storage can be swapped later
-(for example to Postgres) without touching the game rules.
+Two databases are supported with the same queries:
+
+    SQLite    on your machine (a file in data/, nothing to install)
+    Postgres  on the host, when DATABASE_URL is set (free hosts wipe local files)
+
+The game rules never touch SQL; they only call the functions below.
 """
 
+import json
 import os
 import sqlite3
 
 from .config import settings
 
-if settings.db_path != ":memory:":
-    os.makedirs(os.path.dirname(settings.db_path) or ".", exist_ok=True)
+IS_POSTGRES = bool(settings.database_url)
 
-conn = sqlite3.connect(settings.db_path, check_same_thread=False, isolation_level=None)
-conn.row_factory = sqlite3.Row
-conn.execute("PRAGMA journal_mode = WAL")
+if IS_POSTGRES:
+    from psycopg.rows import dict_row
+    from psycopg_pool import ConnectionPool
 
-conn.executescript(
-    """
-    CREATE TABLE IF NOT EXISTS circles (
+    _pool = ConnectionPool(
+        settings.database_url,
+        min_size=1,
+        max_size=4,
+        kwargs={"autocommit": True, "row_factory": dict_row},
+        check=ConnectionPool.check_connection,  # replace connections the host closed
+        open=True,
+    )
+else:
+    if settings.db_path != ":memory:":
+        os.makedirs(os.path.dirname(settings.db_path) or ".", exist_ok=True)
+    _conn = sqlite3.connect(settings.db_path, check_same_thread=False, isolation_level=None)
+    _conn.row_factory = sqlite3.Row
+    _conn.execute("PRAGMA journal_mode = WAL")
+
+
+def _all(sql: str, *args) -> list[dict]:
+    """Run a query and return its rows. Queries are written with ? placeholders."""
+    if IS_POSTGRES:
+        with _pool.connection() as conn:
+            cursor = conn.execute(sql.replace("?", "%s"), args)
+            return cursor.fetchall() if cursor.description else []
+    cursor = _conn.execute(sql, args)
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def _one(sql: str, *args) -> dict | None:
+    rows = _all(sql, *args)
+    return rows[0] if rows else None
+
+
+# ---------- tables ----------
+
+_ID = "BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY" if IS_POSTGRES else "INTEGER PRIMARY KEY AUTOINCREMENT"
+
+_TABLES = [
+    """CREATE TABLE IF NOT EXISTS circles (
         id           TEXT PRIMARY KEY,
         name         TEXT NOT NULL,
         people_limit INTEGER NOT NULL,
-        created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS contributions (
-        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        style        TEXT NOT NULL DEFAULT 'classic',
+        created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""",
+    f"""CREATE TABLE IF NOT EXISTS contributions (
+        id         {_ID},
         circle_id  TEXT NOT NULL REFERENCES circles(id),
-        day        TEXT NOT NULL,           -- YYYY-MM-DD
-        player_id  TEXT NOT NULL,           -- random id kept in a browser cookie
+        day        TEXT NOT NULL,              -- YYYY-MM-DD
+        player_id  TEXT NOT NULL,              -- random id kept in a browser cookie
         name       TEXT NOT NULL,
         dream      TEXT NOT NULL,
         peace      TEXT NOT NULL,
         love       TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        sentence   TEXT NOT NULL DEFAULT '',   -- optional: one sentence in their own words
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (circle_id, day, player_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS stories (
+    )""",
+    """CREATE TABLE IF NOT EXISTS stories (
         circle_id  TEXT NOT NULL REFERENCES circles(id),
         day        TEXT NOT NULL,
         title      TEXT NOT NULL,
-        text       TEXT NOT NULL,           -- words as [[word]], names as {{Name}}
-        closing    TEXT NOT NULL,           -- one thought to carry into the day
-        people     INTEGER NOT NULL,        -- how many friends this version includes
-        source     TEXT NOT NULL,           -- 'claude' or 'placeholder'
-        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        text       TEXT NOT NULL,              -- words as [[word]], names as {{Name}}
+        closing    TEXT NOT NULL,              -- one thought to carry into the day
+        people     INTEGER NOT NULL,           -- how many friends this version includes
+        source     TEXT NOT NULL,              -- 'claude' or 'placeholder'
+        style      TEXT NOT NULL DEFAULT 'classic',
+        matches    TEXT NOT NULL DEFAULT '[]', -- JSON: [{"names": [a, b], "why": "..."}]
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (circle_id, day)
-    );
-    """
-)
+    )""",
+]
+
+# Columns added after the first version. Older databases get them on startup.
+_ADDED_COLUMNS = [
+    ("circles", "style", "TEXT NOT NULL DEFAULT 'classic'"),
+    ("contributions", "sentence", "TEXT NOT NULL DEFAULT ''"),
+    ("stories", "style", "TEXT NOT NULL DEFAULT 'classic'"),
+    ("stories", "matches", "TEXT NOT NULL DEFAULT '[]'"),
+]
 
 
-def _one(sql: str, *args) -> dict | None:
-    row = conn.execute(sql, args).fetchone()
-    return dict(row) if row else None
+def _column_names(table: str) -> set[str]:
+    if IS_POSTGRES:
+        rows = _all("SELECT column_name AS name FROM information_schema.columns WHERE table_name = ?", table)
+    else:
+        rows = _all(f"PRAGMA table_info({table})")
+    return {row["name"] for row in rows}
 
 
-def _all(sql: str, *args) -> list[dict]:
-    return [dict(row) for row in conn.execute(sql, args).fetchall()]
+def create_tables() -> None:
+    for statement in _TABLES:
+        _all(statement)
+    for table, column, definition in _ADDED_COLUMNS:
+        if column not in _column_names(table):
+            _all(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
-# ---- circles ----
+create_tables()
 
-def insert_circle(circle_id: str, name: str, people_limit: int) -> None:
-    conn.execute(
-        "INSERT INTO circles (id, name, people_limit) VALUES (?, ?, ?)",
-        (circle_id, name, people_limit),
-    )
+
+# ---------- circles ----------
+
+def insert_circle(circle_id: str, name: str, people_limit: int, style: str = "classic") -> None:
+    _all("INSERT INTO circles (id, name, people_limit, style) VALUES (?, ?, ?, ?)",
+         circle_id, name, people_limit, style)
 
 
 def get_circle(circle_id: str) -> dict | None:
-    return _one("SELECT * FROM circles WHERE id = ?", circle_id)
+    return _one("SELECT id, name, people_limit, style FROM circles WHERE id = ?", circle_id)
 
 
-# ---- contributions ----
+# ---------- contributions ----------
 
-def insert_contribution(circle_id, day, player_id, name, dream, peace, love) -> None:
-    conn.execute(
-        """INSERT INTO contributions (circle_id, day, player_id, name, dream, peace, love)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (circle_id, day, player_id, name, dream, peace, love),
+def insert_contribution(circle_id, day, player_id, name, dream, peace, love, sentence="") -> None:
+    _all(
+        """INSERT INTO contributions (circle_id, day, player_id, name, dream, peace, love, sentence)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        circle_id, day, player_id, name, dream, peace, love, sentence,
     )
 
 
 def count_people(circle_id: str, day: str) -> int:
-    return conn.execute(
-        "SELECT COUNT(*) FROM contributions WHERE circle_id = ? AND day = ?",
-        (circle_id, day),
-    ).fetchone()[0]
+    return _one("SELECT COUNT(*) AS n FROM contributions WHERE circle_id = ? AND day = ?",
+                circle_id, day)["n"]
 
 
 def list_contributions(circle_id: str, day: str) -> list[dict]:
     """Everyone's words for a day, in the order they were added."""
     return _all(
-        """SELECT name, dream, peace, love FROM contributions
+        """SELECT name, dream, peace, love, sentence FROM contributions
            WHERE circle_id = ? AND day = ? ORDER BY id""",
         circle_id, day,
     )
@@ -108,7 +161,7 @@ def list_contributions(circle_id: str, day: str) -> list[dict]:
 def get_contribution(circle_id: str, day: str, player_id: str) -> dict | None:
     """One player's words, plus `position`: 1 for the first friend of the day, etc."""
     return _one(
-        """SELECT c.name, c.dream, c.peace, c.love,
+        """SELECT c.name, c.dream, c.peace, c.love, c.sentence,
                   (SELECT COUNT(*) FROM contributions e
                     WHERE e.circle_id = c.circle_id AND e.day = c.day AND e.id <= c.id) AS position
            FROM contributions c
@@ -117,28 +170,46 @@ def get_contribution(circle_id: str, day: str, player_id: str) -> dict | None:
     )
 
 
-# ---- stories ----
+# ---------- stories ----------
 
-def save_story(circle_id, day, title, text, closing, people, source) -> None:
-    conn.execute(
-        """INSERT INTO stories (circle_id, day, title, text, closing, people, source)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
+def save_story(circle_id, day, title, text, closing, people, source, style, matches) -> None:
+    _all(
+        """INSERT INTO stories (circle_id, day, title, text, closing, people, source, style, matches)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (circle_id, day) DO UPDATE SET
                title = excluded.title, text = excluded.text, closing = excluded.closing,
-               people = excluded.people, source = excluded.source,
-               updated_at = datetime('now')""",
-        (circle_id, day, title, text, closing, people, source),
+               people = excluded.people, source = excluded.source, style = excluded.style,
+               matches = excluded.matches, updated_at = CURRENT_TIMESTAMP""",
+        circle_id, day, title, text, closing, people, source, style, json.dumps(matches),
     )
 
 
+def _with_matches(story: dict | None) -> dict | None:
+    if story:
+        story["matches"] = json.loads(story["matches"] or "[]")
+    return story
+
+
 def get_story(circle_id: str, day: str) -> dict | None:
-    return _one("SELECT * FROM stories WHERE circle_id = ? AND day = ?", circle_id, day)
+    return _with_matches(_one(
+        """SELECT day, title, text, closing, people, source, style, matches
+           FROM stories WHERE circle_id = ? AND day = ?""",
+        circle_id, day,
+    ))
+
+
+def get_latest_story(circle_id: str) -> dict | None:
+    return _with_matches(_one(
+        """SELECT day, title, text, closing, people, source, style, matches
+           FROM stories WHERE circle_id = ? ORDER BY day DESC LIMIT 1""",
+        circle_id,
+    ))
 
 
 def list_stories(circle_id: str, before_day: str) -> list[dict]:
     """Finished days, newest first."""
     return _all(
-        """SELECT day, title, text, people FROM stories
+        """SELECT day, title, text, people, style FROM stories
            WHERE circle_id = ? AND day < ? ORDER BY day DESC""",
         circle_id, before_day,
     )
@@ -147,7 +218,7 @@ def list_stories(circle_id: str, before_day: str) -> list[dict]:
 def list_days_needing_story(circle_id: str) -> list[str]:
     """Days where friends added words that the saved story does not include yet."""
     rows = _all(
-        """SELECT c.day FROM contributions c
+        """SELECT c.day AS day FROM contributions c
            LEFT JOIN stories s ON s.circle_id = c.circle_id AND s.day = c.day
            WHERE c.circle_id = ?
            GROUP BY c.day

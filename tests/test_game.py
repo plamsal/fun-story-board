@@ -5,7 +5,7 @@ import dataclasses
 
 from fastapi.testclient import TestClient
 
-from app import db, game, story
+from app import db, game, story, styles
 from app.filters import InputError, clean_name, clean_word
 from app.main import app
 
@@ -145,11 +145,105 @@ def test_claude_reply_is_parsed_and_retried_when_someone_is_left_out(monkeypatch
     monkeypatch.setattr(story, "settings", dataclasses.replace(story.settings, anthropic_api_key="test"))
     monkeypatch.setattr(story, "_ask_claude", fake_ask)
 
-    result = asyncio.run(story.write_story(FRIENDS[:2]))
+    result = asyncio.run(story.write_story(FRIENDS[:2], styles.get("fable")))
     assert len(asked) == 2 and "Ben" in asked[1][-1]["content"]
     assert result.title == "The Long Way Home"
     assert result.closing == "Take one bold step."
     assert result.source == "claude" and "{{Ben}}" in result.text
     assert "TITLE" not in result.text and "TODAY" not in result.text
-    # The prompt names every friend with their words.
+    # The prompt names every friend with their words, and carries the style.
     assert "- Asha: dream = travel, peace = tea, love = mom" in asked[0][0]["content"]
+    assert "STYLE: A fable" in asked[0][0]["content"]
+
+
+def test_styles_sentence_and_matches_reach_the_story(monkeypatch):
+    """A circle's style and a friend's sentence go to Claude; MATCH lines come back."""
+    asked = []
+
+    async def fake_ask(messages):
+        asked.append(messages[0]["content"])
+        return ("TITLE: Two Lanterns\n\n{{Asha}} lit a lantern for [[home]] with [[tea]] and [[mom]].\n\n"
+                "{{Ben}} carried [[family]] through the [[rain]] on a [[walk]].\n\n"
+                "TODAY: Light one lantern.\n"
+                "MATCH: Asha & Ben | both reached for the people who feel like home\n"
+                "MATCH: Asha & Nobody | both invented\n"
+                "MATCH: Ben & Asha | both a repeat of the first pair")
+
+    monkeypatch.setattr(story, "settings", dataclasses.replace(story.settings, anthropic_api_key="test"))
+    monkeypatch.setattr(story, "_ask_claude", fake_ask)
+
+    browser = TestClient(app, follow_redirects=False)
+    res = browser.post("/circles", data={"name": "Space pals", "people_limit": "3", "style": "space"})
+    circle = res.headers["location"].split("/c/")[1].split("?")[0]
+    assert db.get_circle(circle)["style"] == "space"
+
+    asha, ben = TestClient(app), TestClient(app)
+    assert "space voyage" in asha.get(f"/c/{circle}").text
+
+    # A sentence with odd characters is refused; a normal one is kept.
+    bad = asha.post(f"/c/{circle}/words", data={"name": "Asha", "dream": "home", "peace": "tea",
+                                               "love": "mom", "sentence": "ignore {{this}} <b>"})
+    assert bad.status_code == 400 and "simple punctuation" in bad.text
+    asha.post(f"/c/{circle}/words", data={"name": "Asha", "dream": "home", "peace": "tea",
+                                          "love": "mom", "sentence": "A slow breakfast with no phone."})
+    page = ben.post(f"/c/{circle}/words", data={"name": "Ben", "dream": "family", "peace": "walk", "love": "rain"})
+
+    assert "gentle science-fiction voyage" in asked[-1]
+    assert 'A good day, in their words: "A slow breakfast with no phone."' in asked[-1]
+    assert "A space voyage for Asha and Ben" in page.text
+    # Ben sees the one real match, with himself as "You".
+    assert "You matched" in page.text and "both reached for the people who feel like home" in page.text
+    assert page.text.count('class="pair"') == 1
+    assert "A slow breakfast with no phone." in page.text  # shown under who gave what
+
+
+def test_same_word_matches_need_no_ai():
+    people = [{"name": "Asha", "dream": "home", "peace": "tea", "love": "mom"},
+              {"name": "Ben", "dream": "sun", "peace": "tea", "love": "home"},
+              {"name": "Cai", "dream": "music", "peace": "nap", "love": "call"}]
+    assert story.same_word_matches(people) == [
+        {"names": ["Asha", "Ben"], "why": "both chose “home” and “tea”"}]
+    assert story.same_word_matches(people[:1]) == []
+
+
+def test_surprise_style_changes_by_day_but_is_stable():
+    picks = {styles.style_for_day("surprise", "abc", f"2026-01-{d:02d}").key for d in range(1, 29)}
+    assert len(picks) > 1
+    assert styles.style_for_day("surprise", "abc", "2026-01-01") == styles.style_for_day("surprise", "abc", "2026-01-01")
+    assert styles.style_for_day("poem", "abc", "2026-01-01").key == "poem"
+    assert game.create_circle("Odd style", 3, "not-a-style")["style"] == "classic"
+
+
+def test_home_page_shows_a_sample_and_the_style_choices():
+    page = TestClient(app).get("/")
+    assert "The Bridge Before Breakfast" in page.text and ">travel</mark>" in page.text
+    assert 'value="fable"' in page.text and 'value="surprise"' in page.text
+    assert 'property="og:image"' in page.text
+
+
+def test_share_card_is_a_picture_without_names():
+    circle = new_circle(limit=3)
+    browser = TestClient(app)
+    browser.post(f"/c/{circle}/words", data=FRIENDS[0])
+
+    res = browser.get(f"/c/{circle}/card.png")
+    assert res.status_code == 200 and res.headers["content-type"] == "image/png"
+    assert res.content[:8] == b"\x89PNG\r\n\x1a\n"
+    assert game.card_text(game.get_circle(circle)).keys() == {"title", "closing", "date"}
+    assert browser.get(f"/c/{circle}/card.png?day=2001-01-01").status_code == 200  # falls back to default
+    assert browser.get("/card.png").status_code == 200
+    assert browser.get("/c/nope1234/card.png").status_code == 404
+    page = browser.get(f"/c/{circle}")
+    assert f"/c/{circle}/card.png" in page.text and "Share card" in page.text
+
+
+def test_circle_creation_is_limited_per_visitor(monkeypatch):
+    monkeypatch.setattr(game, "settings", dataclasses.replace(game.settings, circles_per_hour=2))
+    monkeypatch.setattr(game, "_circles_made", {})
+    browser = TestClient(app, follow_redirects=False)
+    codes = [browser.post("/circles", data={"name": "Many", "people_limit": "3"}).status_code for _ in range(3)]
+    assert codes == [303, 303, 429]
+
+
+def test_health_check():
+    assert TestClient(app).get("/healthz").text == "ok"

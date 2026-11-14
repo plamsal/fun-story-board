@@ -21,6 +21,10 @@ NAME_RE = re.compile(r"^[^\W\d_](?:[^\W\d_]|[ .'’-]){0,23}$")
 CIRCLE_RE = re.compile(r"^[^\W_](?:[^\W_]|[ .,'’&!-]){0,39}$")
 
 
+# Optional sentence: letters, numbers, spaces and everyday punctuation. Max 140 chars.
+SENTENCE_RE = re.compile(r"^(?:[^\W_]|[ .,!?'’\"“”;:()&-]){1,140}$")
+
+
 class InputError(ValueError):
     """A problem with something a person typed."""
 
@@ -62,3 +66,17 @@ def clean_circle_name(raw: str | None) -> str:
     if is_foul(name):
         raise InputError("Let's keep it kind. Try a different name.")
     return name
+
+
+def clean_sentence(raw: str | None) -> str:
+    """The optional sentence. Empty is fine."""
+    sentence = " ".join((raw or "").split())
+    if not sentence:
+        return ""
+    if len(sentence) > 140:
+        raise InputError("Keep it to one short sentence (up to 140 characters).")
+    if not SENTENCE_RE.match(sentence):
+        raise InputError("Use letters, numbers and simple punctuation only.")
+    if is_foul(sentence):
+        raise InputError("Let's keep it kind. Try different words.")
+    return sentence

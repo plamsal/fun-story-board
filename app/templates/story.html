@@ -11,40 +11,7 @@
   <a class="button small" href="/c/{{ circle.id }}">Read the new version</a>
 </div>
 
-<article class="story-page">
-  <div class="ornament" aria-hidden="true">✦</div>
-  <h1 class="story-title">{{ story.title }}</h1>
-  <p class="byline">A story for {{ story.people | map(attribute='name') | and_join }}</p>
-
-  <div class="story">
-    {% for paragraph in story.paragraphs %}
-    <p class="{% if loop.first and paragraph[0].type == 'text' %}dropcap{% endif %}" style="--i: {{ loop.index0 }}">
-      {%- for piece in paragraph -%}
-        {%- if piece.type == 'word' -%}
-          <mark class="{{ piece.kind }}" tabindex="0" role="button" data-credit="{{ piece.credit }}">{{ piece.text }}</mark>
-        {%- elif piece.type == 'name' -%}
-          <mark class="name" tabindex="0" role="button" data-credit="{{ piece.credit }}">{{ piece.text }}</mark>
-        {%- else -%}
-          {{ piece.text }}
-        {%- endif -%}
-      {%- endfor -%}
-    </p>
-    {% endfor %}
-  </div>
-
-  {% if story.closing %}
-  <aside class="closing" style="--i: {{ story.paragraphs | length }}">
-    <span class="closing-label">Carry this into your day</span>
-    <p>{{ story.closing }}</p>
-  </aside>
-  {% endif %}
-
-  <p class="credit" id="credit" aria-live="polite">Tap a highlighted word or name to see whose it is.</p>
-</article>
-
-<div class="legend">
-  <span class="chip dream">dream</span><span class="chip peace">peace</span><span class="chip love">love</span><span class="chip name">friend</span>
-</div>
+{% include "_story.html" %}
 
 {% if view %}
 <section class="card">
@@ -60,6 +27,19 @@
 </section>
 {% endif %}
 
+{% if story.closing %}
+{% set day_card = card_url ~ "?day=" ~ story.day %}
+<section class="card share-card">
+  <h2>Share today's line</h2>
+  <p class="muted">A picture of the closing line, without anyone's name or words.</p>
+  <img class="card-image" src="{{ day_card }}" alt="Card reading: {{ story.closing }}" width="1200" height="630" loading="lazy">
+  <div class="row">
+    <button type="button" data-share-image="{{ day_card }}" data-share="{{ share_url }}">Share card</button>
+    <a class="button ghost" href="{{ day_card }}" download="story-board.png">Save image</a>
+  </div>
+</section>
+{% endif %}
+
 <section class="card">
   <h2>Who gave what</h2>
   <ul class="people">
@@ -71,6 +51,7 @@
         <span class="chip peace">{{ person.peace }}</span>
         <span class="chip love">{{ person.love }}</span>
       </span>
+      {% if person.sentence %}<span class="said">“{{ person.sentence }}”</span>{% endif %}
     </li>
     {% endfor %}
   </ul>

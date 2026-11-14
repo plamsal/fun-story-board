@@ -4,7 +4,18 @@
 <h1>Three words each.<br>One story a day.</h1>
 <p class="lede">Each friend adds three words. Together they become a short story of hope, love and boldness, with every friend in it. A good thing to read before the day begins.</p>
 
-<section class="card">
+<p class="row">
+  <a class="button" href="#start">Start a circle</a>
+  <a class="button ghost" href="#sample">See a sample story</a>
+</p>
+
+<h2 class="section-title" id="sample">Here is what comes out</h2>
+<p class="muted">Asha, Ben and Cai each gave three words. This is the story they read. Tap a highlighted word to see whose it is.</p>
+<div class="sample">
+{% include "_story.html" %}
+</div>
+
+<section class="card" id="start">
   <h2>Start a circle</h2>
   <form method="post" action="/circles" novalidate>
     <div class="field">
@@ -21,17 +32,27 @@
       </select>
       <p class="hint">Each friend can read the story as soon as they add their words. It is final when this many friends are in.</p>
     </div>
+    <fieldset class="field styles">
+      <legend>What kind of story?</legend>
+      {% for key, blurb in style_choices %}
+      {% set name, sep, rest = blurb.partition(": ") %}
+      <label class="style-option">
+        <input type="radio" name="style" value="{{ key }}" {% if (form.style or 'classic') == key %}checked{% endif %}>
+        <span><strong>{{ name }}</strong> {{ rest }}</span>
+      </label>
+      {% endfor %}
+    </fieldset>
     <p class="error" role="alert">{{ error }}</p>
     <button type="submit" class="full">Create my circle</button>
   </form>
 </section>
 
-<section class="card">
+<section class="card" id="how">
   <h2>How it works</h2>
   <ol class="steps">
-    <li>Answer three small questions with <strong>one word each</strong>: a dream, a peace, a love.</li>
+    <li>Answer three small questions with <strong>one word each</strong>: a dream, a peace, a love. Add one sentence if you like.</li>
     <li>Read today's story right away. You are in it, and so are your words.</li>
-    <li>The story grows through the day as more friends add theirs.</li>
+    <li>The story grows through the day as more friends add theirs, and shows which friends matched.</li>
     <li>Tomorrow morning, a new story begins.</li>
   </ol>
 </section>

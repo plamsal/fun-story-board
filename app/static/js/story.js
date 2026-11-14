@@ -4,7 +4,7 @@
 //   1. tap a highlighted word or name to see whose it is
 //   2. open the story automatically when it has been written,
 //      and say so when it has grown
-//   3. the "Invite friends" / "Copy link" button
+//   3. the "Invite friends" / "Copy link" / "Share card" buttons
 
 // ---- 1. whose word is this? ----
 
@@ -66,12 +66,28 @@ if (poll === 'growing') {
 
 // ---- 3. share ----
 
+const shareText = "Add your three words to today's story";
+
+// Sharing the card picture works on phones; elsewhere this returns false.
+async function shareImage(imageUrl, url) {
+  try {
+    const blob = await (await fetch(imageUrl)).blob();
+    const file = new File([blob], 'story-board.png', { type: 'image/png' });
+    if (!navigator.canShare || !navigator.canShare({ files: [file] })) return false;
+    await navigator.share({ files: [file], text: shareText, url });
+    return true;
+  } catch (err) {
+    return err.name === 'AbortError'; // share sheet closed: nothing more to do
+  }
+}
+
 for (const button of document.querySelectorAll('[data-share]')) {
   button.addEventListener('click', async () => {
-    const url = button.dataset.share;
+    const { share: url, shareImage: imageUrl } = button.dataset;
+    if (imageUrl && (await shareImage(imageUrl, url))) return;
     try {
       if (navigator.share) {
-        await navigator.share({ title: document.title, text: "Add your three words to today's story", url });
+        await navigator.share({ title: document.title, text: shareText, url });
       } else {
         await navigator.clipboard.writeText(url);
         button.textContent = 'Link copied!';

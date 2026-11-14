@@ -18,6 +18,8 @@
   {% else %}{{ view.people }} friends are in today's story. Add three words to join and read it.{% endif %}
 </p>
 
+<p class="style-note">Today's story will be {{ view.style.article }} <strong>{{ view.style.label }}</strong>.</p>
+
 <form class="card" method="post" action="/c/{{ circle.id }}/words" novalidate>
   {% if errors.form %}<p class="error" role="alert">{{ errors.form }}</p>{% endif %}
 
@@ -39,6 +41,16 @@
            value="{{ form.name or '' }}" autocomplete="given-name" autocapitalize="words"
            {% if errors.name %}aria-invalid="true" autofocus{% endif %} required>
     {% if errors.name %}<p class="error" role="alert">{{ errors.name }}</p>{% endif %}
+  </div>
+
+  <div class="field">
+    <span class="tag optional">Optional</span>
+    <label for="sentence">{{ sentence_ask }}</label>
+    <input type="text" id="sentence" name="sentence" maxlength="140" placeholder="A sentence in your own words"
+           value="{{ form.sentence or '' }}" autocomplete="off"
+           {% if errors.sentence %}aria-invalid="true" autofocus{% endif %}>
+    {% if errors.sentence %}<p class="error" role="alert">{{ errors.sentence }}</p>
+    {% else %}<p class="hint">It shapes your part of the story.</p>{% endif %}
   </div>
 
   <button type="submit" class="full">Write me into today's story</button>

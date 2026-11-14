@@ -1,0 +1,19 @@
+# Render blueprint: describes how to run this app on render.com.
+# In Render: New > Blueprint > pick this repo. It then asks for the two secrets below.
+services:
+  - type: web
+    name: fun-story-board
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: STORY_TIMEZONE
+        value: America/New_York
+      - key: ANTHROPIC_API_KEY   # your Claude key (asked for when you deploy)
+        sync: false
+      - key: DATABASE_URL        # your Neon Postgres connection string (asked for when you deploy)
+        sync: false

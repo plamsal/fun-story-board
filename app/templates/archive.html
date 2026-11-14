@@ -11,7 +11,7 @@
     {% for s in stories %}
     <li>
       <a href="/c/{{ circle.id }}/d/{{ s.day }}">
-        <span class="date">{{ s.date }} · {{ s.people }} {{ 'friend' if s.people == 1 else 'friends' }}</span>
+        <span class="date">{{ s.date }} · {{ s.kind }} · {{ s.people }} {{ 'friend' if s.people == 1 else 'friends' }}</span>
         <span class="list-title">{{ s.title }}</span>
         <span class="preview">{{ s.preview }}…</span>
       </a>
