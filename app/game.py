@@ -3,7 +3,7 @@ story.py writes the story.
 
 How a day works for one circle:
 
-  1. A friend adds their name, three words and (if they like) one sentence.
+  1. A friend adds their name, three words and (if they like) a message to the circle.
   2. The story is rewritten to include them, and they can read it right away.
      So the first friend of the morning already gets a story, and it grows
      richer with each friend who joins.
@@ -18,6 +18,7 @@ What a visitor sees (the "phase"):
   story    the story is ready to read
 """
 
+import hashlib
 import logging
 import re
 import secrets
@@ -174,9 +175,18 @@ def days_needing_story(circle: dict) -> list[str]:
 
 # ---------- what to show ----------
 
+def lucky_number(day: str, person: dict) -> int:
+    """A number from 1 to 99, worked out from the friend's own name and words and
+    the date. The same words on the same day always give the same number. It is
+    for fun: it predicts nothing."""
+    seed = "|".join([day, person["name"].lower(), *(person[key] for key in KEYS)])
+    return int.from_bytes(hashlib.sha256(seed.encode()).digest()[:4], "big") % 99 + 1
+
+
 def build_story_view(saved: dict, contributions: list[dict], viewer_name: str | None = None) -> dict:
     """A saved story plus the friends in it, prepared for the page."""
     style = styles.get(saved["style"])
+    people = [{**c, "lucky": lucky_number(saved["day"], c)} for c in contributions]
     # Put the viewer's own matches first, and say "You" instead of their name.
     matches = []
     for match in saved["matches"]:
@@ -190,7 +200,9 @@ def build_story_view(saved: dict, contributions: list[dict], viewer_name: str | 
         "title": saved["title"],
         "closing": saved["closing"],
         "paragraphs": story.to_paragraphs(saved["text"], contributions),
-        "people": contributions,
+        "people": people,
+        "quotes": [{"name": p["name"], "text": p["sentence"]} for p in people if p.get("sentence")],
+        "my_lucky": next((p["lucky"] for p in people if p["name"] == viewer_name), None),
         "version": saved["people"],
         "source": saved["source"],
         "style": style.key,
@@ -242,18 +254,91 @@ def today_view(circle: dict, player_id: str | None) -> dict:
     }
 
 
-def archive(circle: dict) -> list[dict]:
-    return [
+def archive(circle: dict, player_id: str | None = None,
+            month: str | None = None, style: str | None = None) -> dict:
+    """Past stories, grouped by month, with optional month and style filters.
+
+    Today's story is listed too, but only for a visitor who may read it
+    (they added words today, or the day is closed).
+    """
+    day = today()
+    can_read_today = today_view(circle, player_id)["phase"] == "story"
+    rows = [s for s in db.list_stories(circle["id"], up_to_day=day)
+            if s["day"] < day or can_read_today]
+
+    stories = [
         {
             "day": s["day"],
             "date": nice_date(s["day"]),
+            "month": s["day"][:7],
             "title": s["title"],
             "people": s["people"],
+            "style": s["style"],
             "kind": styles.get(s["style"]).label,
             "preview": story.plain_text(s["text"])[:120],
+            "is_today": s["day"] == day,
+            "url": f"/c/{circle['id']}" if s["day"] == day else f"/c/{circle['id']}/d/{s['day']}",
         }
-        for s in db.list_stories(circle["id"], before_day=today())
+        for s in rows
     ]
+
+    # Filter choices, with how many stories each holds.
+    months, kinds = {}, {}
+    for s in stories:
+        months[s["month"]] = months.get(s["month"], 0) + 1
+        kinds[s["style"]] = kinds.get(s["style"], 0) + 1
+    month = month if month in months else None
+    style = style if style in kinds else None
+
+    shown = [s for s in stories
+             if (not month or s["month"] == month) and (not style or s["style"] == style)]
+    groups = []  # [{"label": "November 2026", "stories": [...]}], newest month first
+    for s in shown:
+        label = f"{datetime.strptime(s['month'], '%Y-%m'):%B %Y}"
+        if not groups or groups[-1]["label"] != label:
+            groups.append({"label": label, "stories": []})
+        groups[-1]["stories"].append(s)
+
+    return {
+        "total": len(stories),
+        "shown": len(shown),
+        "groups": groups,
+        "months": [{"key": k, "label": f"{datetime.strptime(k, '%Y-%m'):%b %Y}", "count": n}
+                   for k, n in months.items()],
+        "styles": [{"key": k, "label": styles.get(k).blurb.split(":")[0], "count": n}
+                   for k, n in kinds.items()],
+        "month": month,
+        "style": style,
+    }
+
+
+# ---------- your circles ----------
+
+CIRCLE_ID_RE = re.compile(r"^[a-z0-9]{8}$")
+MAX_REMEMBERED = 12
+
+
+def remembered_ids(cookie: str | None, add: str | None = None) -> list[str]:
+    """Circle ids kept in this browser's cookie, newest first. `add` moves one to the front."""
+    ids = [i for i in (cookie or "").split(".") if CIRCLE_ID_RE.match(i)]
+    if add:
+        ids = [add] + [i for i in ids if i != add]
+    return list(dict.fromkeys(ids))[:MAX_REMEMBERED]
+
+
+def your_circles(cookie: str | None, player_id: str | None) -> list[dict]:
+    """The circles this browser has opened, for the home page."""
+    ids = remembered_ids(cookie)
+    found = {c["id"]: c for c in db.list_circles(ids, today(), player_id or "")}
+    circles = []
+    for circle_id in ids:
+        c = found.get(circle_id)
+        if c:
+            circles.append({
+                "id": c["id"], "name": c["name"], "people": c["people"], "limit": c["people_limit"],
+                "joined": bool(c["mine"]), "full": c["people"] >= c["people_limit"],
+            })
+    return circles
 
 
 def past_story(circle: dict, day: str) -> dict | None:

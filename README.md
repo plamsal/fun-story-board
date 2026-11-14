@@ -3,15 +3,16 @@
 **Three words each. One story a day.**
 
 Friends share one link. Each morning a friend answers three small questions
-with one word each (and, if they like, one sentence). Claude then writes a
+with one word each (and, if they like, a message to the circle). Claude then writes a
 short story of **hope, love and boldness** in which every friend appears by
 name, in a good light, alongside their words. The friend reads it straight
 away, before the day begins, and the story grows as more friends add theirs.
 
 Each circle picks a **style** (heartfelt, fable, adventure, space, poem, or a
-surprise each day). The story page also shows which friends **matched** on a
-similar idea, and a **share card**: a picture of the closing line with no
-names or words on it.
+surprise each day). The story page also shows each friend's message as a
+**quote** from them, which friends **matched** on a similar idea, a **lucky
+number** for each friend (made from their own words and the date, for fun), and
+a **share card**: a picture of the closing line with no names or words on it.
 
 | Question | Feeds the story's... |
 |---|---|
@@ -22,13 +23,16 @@ names or words on it.
 ## Rules of the game
 
 - A **circle** is a group of friends with its own link (`/c/<id>`). The link never changes.
-- Each person adds their first name, three words and an optional sentence **once per day**.
+- Each person adds their first name, three words and an optional message **once per day**.
 - Foul words are blocked on the spot and the person is asked for another word.
 - As soon as you add your words, the story is rewritten to include you and you can read it.
 - Friends who have not added words yet **cannot see** today's story or anyone's words.
 - When the circle's limit is reached (3 to 12 friends, default 8) the day is closed
   and the story is final. Everyone with the link can then read it.
-- At midnight a new day starts. Finished days are kept under **Past stories**.
+- At midnight a new day starts. Every story is kept under **Stories**, grouped by
+  month, with filters for month and style. Today's story is listed there too for
+  anyone who may read it.
+- The home page lists **Your circles**: the circles this browser has opened.
 
 ## Run it
 
@@ -100,11 +104,11 @@ fun-story-board/
 │   ├── templates/          the pages, drawn in Python with Jinja2
 │   │   ├── base.html       shared frame: header, link-preview text
 │   │   ├── home.html       sample story + create a circle
-│   │   ├── words.html      the three questions, name, optional sentence
+│   │   ├── words.html      the three questions, name, optional message
 │   │   ├── writing.html    "writing you into the story…"
 │   │   ├── story.html      the story page (today and past days)
-│   │   ├── _story.html     the story itself + matches (shared with the home page sample)
-│   │   ├── archive.html    list of past stories
+│   │   ├── _story.html     the story, quotes and matches (shared with the home page sample)
+│   │   ├── archive.html    all stories by month, with filters
 │   │   └── problem.html    not-found page
 │   └── static/
 │       ├── css/style.css   all styling
@@ -124,7 +128,8 @@ fun-story-board/
 | To change... | Edit |
 |---|---|
 | The tone, themes or length of the story | `SYSTEM_PROMPT` and `target_length` in `app/story.py` |
-| The questions, or the optional sentence prompt | `app/questions.py` |
+| The questions, or the message prompt | `app/questions.py` |
+| How the lucky number is worked out | `lucky_number` in `app/game.py` |
 | The story styles | `app/styles.py` |
 | The sample on the home page | `app/sample.py` |
 | How the share card looks | `app/card.py` |
@@ -161,7 +166,7 @@ form ──(adds words)──► writing ──(story includes them)──► st
 
 ### How the story is checked
 
-1. `story.py` sends each friend's name, three words and optional sentence, plus
+1. `story.py` sends each friend's name, three words and optional message, plus
    the circle's style, with the system prompt.
 2. The reply must mark words as `[[word]]` and names as `{{Name}}`, with a
    `TITLE:` line, a closing `TODAY:` line, and optional `MATCH:` lines naming two
@@ -184,10 +189,11 @@ than the number of contributions, the story is behind and gets rewritten.
 
 ## Privacy notes
 
-- First names, words and the optional sentence are sent to the Claude API so
+- First names, words and the optional message are sent to the Claude API so
   each friend can be a character in the story. Nothing else about a person is sent.
 - The share card and the link preview show only the title and closing line.
 - No accounts. A random id in a browser cookie keeps it to one entry per person per day.
+  A second cookie remembers which circles the browser has opened.
 
 ## Not built yet
 

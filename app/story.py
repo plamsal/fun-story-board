@@ -10,7 +10,7 @@ In the story text, each friend's word is wrapped like [[word]] and each
 friend's name like {{Name}}. That is how the page knows what to highlight
 and who to credit.
 
-Names, words and the optional sentence are sent to the Claude API so that
+Names, words and the optional message are sent to the Claude API so that
 every friend can be a character in the story. Nothing else is sent.
 """
 
@@ -31,7 +31,7 @@ hopeful, loved and a little braver.
 
 Each friend gave their first name and three single words: something they dream of, \
 something that brings them peace, and someone or something they love. Some friends \
-also wrote one sentence about what would make today a good day.
+also wrote a short message to the circle in their own words.
 
 THE STORY
 - Its heart is three things: hope, love and boldness. Hope opens it, love holds it \
@@ -39,8 +39,8 @@ together, and it ends with someone taking a bold step forward.
 - Every friend is a character in the story, called by their name. Show each one in a \
 warm, good light: doing something kind, brave, steady or generous. Tie each friend to \
 their own three words where it feels natural.
-- If a friend wrote a sentence, let it shape that friend's moment in the story. Carry \
-its meaning; do not quote it word for word.
+- If a friend wrote a message, let it shape that friend's moment in the story. Carry \
+its meaning; do not quote it word for word (it is shown beside the story as their quote).
 - Give every friend a real moment. Nobody is a bystander, a villain, a joke or a \
 victim. No romance between the friends.
 - Do not invent private facts about the friends (jobs, family, health, age, looks, \
@@ -98,7 +98,7 @@ def build_user_prompt(contributions: list[dict], style: Style) -> str:
     for c in contributions:
         line = f"- {c['name']}: " + ", ".join(f"{q.label.lower()} = {c[q.key]}" for q in QUESTIONS)
         if c.get("sentence"):
-            line += f'. A good day, in their words: "{c["sentence"]}"'
+            line += f'. Their message to the circle: "{c["sentence"]}"'
         lines.append(line)
     roles = "\n".join(f"- {q.label} words: {q.role}" for q in QUESTIONS)
     return (

@@ -44,13 +44,13 @@
   </div>
 
   <div class="field">
-    <span class="tag optional">Optional</span>
-    <label for="sentence">{{ sentence_ask }}</label>
-    <input type="text" id="sentence" name="sentence" maxlength="140" placeholder="A sentence in your own words"
+    <span class="tag name">Your quote</span>
+    <label for="sentence">{{ quote_ask }} <span class="optional-note">(optional)</span></label>
+    <input type="text" id="sentence" name="sentence" maxlength="140" placeholder="In your own words"
            value="{{ form.sentence or '' }}" autocomplete="off"
            {% if errors.sentence %}aria-invalid="true" autofocus{% endif %}>
     {% if errors.sentence %}<p class="error" role="alert">{{ errors.sentence }}</p>
-    {% else %}<p class="hint">It shapes your part of the story.</p>{% endif %}
+    {% else %}<p class="hint">{{ quote_hint }}</p>{% endif %}
   </div>
 
   <button type="submit" class="full">Write me into today's story</button>

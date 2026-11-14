@@ -4,7 +4,12 @@
 {% block body_attrs %}{% if view and not view.full %}data-poll="growing" data-status-url="/c/{{ circle.id }}/status" data-version="{{ story.version }}"{% endif %}{% endblock %}
 {% block content %}
 <p class="eyebrow">{{ story.date }} · {{ circle.name }}</p>
-{% if view and view.mine %}<p class="greeting">{{ view.greeting }}, {{ view.mine.name }}.</p>{% endif %}
+{% if view and view.mine %}
+<p class="greeting">{{ view.greeting }}, {{ view.mine.name }}.</p>
+{% if story.my_lucky %}
+<p class="lucky"><span class="lucky-number">{{ story.my_lucky }}</span> <span>is your lucky number today.<br><small>Made from your three words and today's date.</small></span></p>
+{% endif %}
+{% endif %}
 
 <div class="update" id="update" hidden>
   <span>A friend joined. The story has grown.</span>
@@ -45,13 +50,12 @@
   <ul class="people">
     {% for person in story.people %}
     <li>
-      <span class="who">{{ person.name }}</span>
+      <span class="who">{{ person.name }} <span class="lucky-small" title="Lucky number today">{{ person.lucky }}</span></span>
       <span class="chips">
         <span class="chip dream">{{ person.dream }}</span>
         <span class="chip peace">{{ person.peace }}</span>
         <span class="chip love">{{ person.love }}</span>
       </span>
-      {% if person.sentence %}<span class="said">“{{ person.sentence }}”</span>{% endif %}
     </li>
     {% endfor %}
   </ul>

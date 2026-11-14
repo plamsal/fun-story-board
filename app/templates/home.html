@@ -9,6 +9,27 @@
   <a class="button ghost" href="#sample">See a sample story</a>
 </p>
 
+{% if your_circles %}
+<section class="card your-circles">
+  <h2>Your circles</h2>
+  <ul class="list">
+    {% for c in your_circles %}
+    <li>
+      <a href="/c/{{ c.id }}">
+        <span class="list-title">{{ c.name }}</span>
+        <span class="preview">
+          {% if c.joined %}You are in today's story · {{ c.people }} of {{ c.limit }} friends
+          {% elif c.full %}Today's story is finished · read it
+          {% elif c.people %}{{ c.people }} of {{ c.limit }} friends today · add your words
+          {% else %}No one yet today · be the first{% endif %}
+        </span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
 <h2 class="section-title" id="sample">Here is what comes out</h2>
 <p class="muted">Asha, Ben and Cai each gave three words. This is the story they read. Tap a highlighted word to see whose it is.</p>
 <div class="sample">
@@ -50,8 +71,8 @@
 <section class="card" id="how">
   <h2>How it works</h2>
   <ol class="steps">
-    <li>Answer three small questions with <strong>one word each</strong>: a dream, a peace, a love. Add one sentence if you like.</li>
-    <li>Read today's story right away. You are in it, and so are your words.</li>
+    <li>Answer three small questions with <strong>one word each</strong>: a dream, a peace, a love. Add a message to your circle if you like.</li>
+    <li>Read today's story right away. You are in it, and so are your words. You also get your lucky number for the day.</li>
     <li>The story grows through the day as more friends add theirs, and shows which friends matched.</li>
     <li>Tomorrow morning, a new story begins.</li>
   </ol>

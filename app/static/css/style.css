@@ -249,6 +249,47 @@ fieldset.styles legend { font-family: var(--serif); font-size: 1.2rem; padding: 
 }
 .people .said { display: block; margin-top: 0.4rem; font-family: var(--serif); font-style: italic; color: var(--muted); }
 
+/* ---- quotes and lucky number ---- */
+
+.quotes .quote { margin: 0; padding: 0.9rem 0 0.9rem 1rem; border-left: 3px solid var(--name-bg); }
+.quotes .quote + .quote { margin-top: 0.8rem; }
+.quote blockquote { margin: 0; font-family: var(--serif); font-style: italic; font-size: 1.25rem; line-height: 1.4; }
+.quote blockquote::before { content: "\201C"; }
+.quote blockquote::after { content: "\201D"; }
+.quote figcaption { margin-top: 0.35rem; font-size: 0.9rem; font-weight: 600; color: var(--name); }
+.quote figcaption::before { content: "\2014\00A0"; }
+
+.lucky { display: flex; align-items: center; gap: 0.8rem; margin: -0.4rem 0 1.2rem; line-height: 1.3; }
+.lucky small { color: var(--muted); }
+.lucky-number {
+  flex: none; width: 3.4rem; height: 3.4rem; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--serif); font-size: 1.6rem; font-weight: 600; color: var(--name);
+  background: var(--card); border: 2px solid var(--name-bg);
+  box-shadow: 0 6px 16px -8px rgba(162, 97, 12, 0.6);
+}
+.lucky-small {
+  display: inline-grid; place-items: center; min-width: 1.6rem; height: 1.6rem; padding: 0 0.3rem;
+  border-radius: 999px; font-size: 0.75rem; background: var(--name-bg); color: var(--name); margin-left: 0.3rem;
+}
+.optional-note { font-family: var(--sans); font-size: 0.8rem; color: var(--muted); }
+
+/* ---- story list: filters and month groups ---- */
+
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0 0 0.8rem; }
+.filter-label { font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); width: 3.4rem; }
+.filter {
+  text-decoration: none; font-size: 0.9rem; padding: 0.3rem 0.75rem; border-radius: 999px;
+  border: 1.5px solid var(--line); background: #fff;
+}
+.filter.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.count { font-size: 0.8em; opacity: 0.6; font-weight: 400; }
+.month-title { margin: 1.6rem 0 0.6rem; }
+.today-tag {
+  background: var(--love-bg); color: var(--love); font-weight: 700; font-size: 0.7rem;
+  letter-spacing: 0.08em; text-transform: uppercase; padding: 0.1rem 0.45rem; border-radius: 999px;
+}
+.your-circles { margin-top: 1.5rem; }
+
 @media (prefers-reduced-motion: reduce) {
   .pulse, .quill, .story p, .closing { animation: none; }
 }

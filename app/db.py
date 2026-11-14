@@ -134,6 +134,22 @@ def get_circle(circle_id: str) -> dict | None:
     return _one("SELECT id, name, people_limit, style FROM circles WHERE id = ?", circle_id)
 
 
+def list_circles(circle_ids: list[str], day: str, player_id: str) -> list[dict]:
+    """Circles for the "Your circles" list: how many friends are in today, and whether you are."""
+    if not circle_ids:
+        return []
+    marks = ", ".join("?" for _ in circle_ids)
+    return _all(
+        f"""SELECT c.id, c.name, c.people_limit, c.style,
+                   (SELECT COUNT(*) FROM contributions x
+                     WHERE x.circle_id = c.id AND x.day = ?) AS people,
+                   (SELECT COUNT(*) FROM contributions x
+                     WHERE x.circle_id = c.id AND x.day = ? AND x.player_id = ?) AS mine
+            FROM circles c WHERE c.id IN ({marks})""",
+        day, day, player_id, *circle_ids,
+    )
+
+
 # ---------- contributions ----------
 
 def insert_contribution(circle_id, day, player_id, name, dream, peace, love, sentence="") -> None:
@@ -206,12 +222,12 @@ def get_latest_story(circle_id: str) -> dict | None:
     ))
 
 
-def list_stories(circle_id: str, before_day: str) -> list[dict]:
-    """Finished days, newest first."""
+def list_stories(circle_id: str, up_to_day: str) -> list[dict]:
+    """Stories up to and including a day, newest first."""
     return _all(
         """SELECT day, title, text, people, style FROM stories
-           WHERE circle_id = ? AND day < ? ORDER BY day DESC""",
-        circle_id, before_day,
+           WHERE circle_id = ? AND day <= ? ORDER BY day DESC""",
+        circle_id, up_to_day,
     )
 
 

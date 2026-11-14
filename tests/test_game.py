@@ -90,6 +90,7 @@ def test_past_days_show_in_the_archive():
     browser.get(f"/c/{circle}")
     archive = browser.get(f"/c/{circle}/archive")
     assert "Wednesday, January 1" in archive.text and "3 friends" in archive.text
+    assert "January 2020" in archive.text
     page = browser.get(f"/c/{circle}/d/2020-01-01")
     assert page.status_code == 200 and ">mom</mark>" in page.text
 
@@ -189,12 +190,15 @@ def test_styles_sentence_and_matches_reach_the_story(monkeypatch):
     page = ben.post(f"/c/{circle}/words", data={"name": "Ben", "dream": "family", "peace": "walk", "love": "rain"})
 
     assert "gentle science-fiction voyage" in asked[-1]
-    assert 'A good day, in their words: "A slow breakfast with no phone."' in asked[-1]
+    assert 'Their message to the circle: "A slow breakfast with no phone."' in asked[-1]
     assert "A space voyage for Asha and Ben" in page.text
     # Ben sees the one real match, with himself as "You".
     assert "You matched" in page.text and "both reached for the people who feel like home" in page.text
     assert page.text.count('class="pair"') == 1
-    assert "A slow breakfast with no phone." in page.text  # shown under who gave what
+    # Asha's message is shown as a quote from her.
+    assert "In their own words" in page.text
+    assert "<blockquote>A slow breakfast with no phone.</blockquote>" in page.text
+    assert "<figcaption>Asha</figcaption>" in page.text
 
 
 def test_same_word_matches_need_no_ai():
@@ -247,3 +251,64 @@ def test_circle_creation_is_limited_per_visitor(monkeypatch):
 
 def test_health_check():
     assert TestClient(app).get("/healthz").text == "ok"
+
+
+def test_story_list_shows_today_and_filters_by_month_and_style():
+    circle = new_circle(limit=3, name="Long memory")
+    for day, style in [("2025-12-30", "fable"), ("2026-01-05", "fable"), ("2026-01-06", "poem")]:
+        db.insert_contribution(circle, day, "player-old", **FRIENDS[0])
+        db.save_story(circle, day, f"Title {day}", "{{Asha}} [[travel]] [[tea]] [[mom]]", "Go.", 1, "placeholder", style, [])
+
+    asha, visitor = TestClient(app), TestClient(app)
+    asha.post(f"/c/{circle}/words", data=FRIENDS[0])
+
+    # Asha added words today, so today's story is in her list; a visitor's list has only the past.
+    mine = asha.get(f"/c/{circle}/archive").text
+    assert "today-tag" in mine and mine.count('class="list-title"') == 4
+    theirs = visitor.get(f"/c/{circle}/archive").text
+    assert "today-tag" not in theirs and theirs.count('class="list-title"') == 3
+
+    # Months work like folders, and filters combine.
+    assert "December 2025" in theirs and "January 2026" in theirs and "Dec 2025" in theirs
+    january = visitor.get(f"/c/{circle}/archive?month=2026-01").text
+    assert january.count('class="list-title"') == 2 and "Title 2025-12-30" not in january
+    poems = visitor.get(f"/c/{circle}/archive?month=2026-01&style=poem").text
+    assert poems.count('class="list-title"') == 1 and "Title 2026-01-06" in poems
+    nothing = visitor.get(f"/c/{circle}/archive?month=2025-12&style=poem").text
+    assert "No stories match" in nothing
+    # Unknown filter values are ignored rather than breaking the page.
+    assert visitor.get(f"/c/{circle}/archive?month=bogus&style=x").text.count('class="list-title"') == 3
+
+
+def test_home_page_lists_your_circles():
+    first, second = new_circle(name="Book club"), new_circle(name="Family")
+    browser = TestClient(app)
+    assert "Your circles" not in browser.get("/").text
+
+    browser.get(f"/c/{first}")
+    browser.post(f"/c/{second}/words", data=FRIENDS[0])
+    home = browser.get("/").text
+    assert "Your circles" in home and "Book club" in home and "Family" in home
+    assert home.index("Family") < home.index("Book club")  # most recent first
+    assert "You are in today" in home and "be the first" in home
+    assert "Family" not in TestClient(app).get("/").text  # another browser sees nothing
+
+    assert game.remembered_ids("abcd2345.bad id.<x>.abcd2345") == ["abcd2345"]
+
+
+def test_lucky_number_is_personal_stable_and_shown():
+    asha, ben = FRIENDS[0], FRIENDS[1]
+    number = game.lucky_number("2026-11-14", asha)
+    assert 1 <= number <= 99
+    assert number == game.lucky_number("2026-11-14", {**asha, "name": "ASHA"})  # same person, same day
+    numbers = {game.lucky_number(f"2026-11-{d:02d}", asha) for d in range(1, 29)}
+    assert len(numbers) > 10  # changes from day to day
+    assert all(1 <= game.lucky_number("2026-11-14", {**ben, "dream": w}) <= 99 for w in ["a", "sea", "zebra"])
+
+    circle = new_circle(limit=3)
+    browser = TestClient(app)
+    page = browser.post(f"/c/{circle}/words", data=asha).text
+    mine = game.lucky_number(game.today(), asha)
+    assert f'<span class="lucky-number">{mine}</span>' in page and "is your lucky number today" in page
+    # A reader who is not in the story gets no lucky number of their own.
+    assert "lucky-number" not in TestClient(app).get("/").text

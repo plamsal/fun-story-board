@@ -1,17 +1,51 @@
 {% extends "base.html" %}
-{% block title %}Past stories · {{ circle.name }}{% endblock %}
+{% block title %}Stories · {{ circle.name }}{% endblock %}
 {% block content %}
 <p class="eyebrow">{{ circle.name }}</p>
-<h1>Past stories</h1>
-{% if not stories %}
-<p class="lede">No finished days yet. Each day's story appears here the next morning.</p>
+<h1>Stories</h1>
+
+{% if archive.total == 0 %}
+<p class="lede">No stories to show yet. Add your words today and your first story appears here.</p>
+<a class="button" href="/c/{{ circle.id }}">Go to today</a>
 {% else %}
+
+{# Filters appear once there is something to choose between. #}
+{% macro link(month, style) -%}
+/c/{{ circle.id }}/archive{% if month or style %}?{% endif %}{% if month %}month={{ month }}{% endif %}{% if month and style %}&amp;{% endif %}{% if style %}style={{ style }}{% endif %}
+{%- endmacro %}
+
+{% if archive.months | length > 1 %}
+<nav class="filters" aria-label="Filter by month">
+  <span class="filter-label">Month</span>
+  <a class="filter {{ 'on' if not archive.month }}" href="{{ link(none, archive.style) }}">All</a>
+  {% for m in archive.months %}
+  <a class="filter {{ 'on' if archive.month == m.key }}" href="{{ link(m.key, archive.style) }}">{{ m.label }} <span class="count">{{ m.count }}</span></a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+{% if archive.styles | length > 1 %}
+<nav class="filters" aria-label="Filter by style">
+  <span class="filter-label">Style</span>
+  <a class="filter {{ 'on' if not archive.style }}" href="{{ link(archive.month, none) }}">All</a>
+  {% for k in archive.styles %}
+  <a class="filter {{ 'on' if archive.style == k.key }}" href="{{ link(archive.month, k.key) }}">{{ k.label }} <span class="count">{{ k.count }}</span></a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+{% if archive.shown == 0 %}
+<p class="lede">No stories match these filters. <a href="/c/{{ circle.id }}/archive">Show all</a></p>
+{% endif %}
+
+{% for group in archive.groups %}
+<h2 class="month-title">{{ group.label }} <span class="count">{{ group.stories | length }}</span></h2>
 <section class="card">
   <ul class="list">
-    {% for s in stories %}
+    {% for s in group.stories %}
     <li>
-      <a href="/c/{{ circle.id }}/d/{{ s.day }}">
-        <span class="date">{{ s.date }} · {{ s.kind }} · {{ s.people }} {{ 'friend' if s.people == 1 else 'friends' }}</span>
+      <a href="{{ s.url }}">
+        <span class="date">{% if s.is_today %}<span class="today-tag">Today</span> {% endif %}{{ s.date }} · {{ s.kind }} · {{ s.people }} {{ 'friend' if s.people == 1 else 'friends' }}</span>
         <span class="list-title">{{ s.title }}</span>
         <span class="preview">{{ s.preview }}…</span>
       </a>
@@ -19,5 +53,6 @@
     {% endfor %}
   </ul>
 </section>
+{% endfor %}
 {% endif %}
 {% endblock %}

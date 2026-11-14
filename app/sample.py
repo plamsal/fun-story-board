@@ -7,9 +7,11 @@ Edit the text here to change the sample.
 from . import game
 
 PEOPLE = [
-    {"name": "Asha", "dream": "travel", "peace": "tea", "love": "mom", "sentence": ""},
+    {"name": "Asha", "dream": "travel", "peace": "tea", "love": "mom",
+     "sentence": "Go before you feel ready. Ready comes later."},
     {"name": "Ben", "dream": "rain", "peace": "walk", "love": "hug", "sentence": ""},
-    {"name": "Cai", "dream": "music", "peace": "nap", "love": "call", "sentence": ""},
+    {"name": "Cai", "dream": "music", "peace": "nap", "love": "call",
+     "sentence": "Play the song even if your hands shake."},
 ]
 
 SAVED = {

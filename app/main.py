@@ -3,10 +3,10 @@
     GET  /                   home: sample story + create a circle
     POST /circles            create it, then go to the circle page
     GET  /c/{id}             today: add words -> wait -> read the story
-    POST /c/{id}/words       add your name, three words and optional sentence
+    POST /c/{id}/words       add your name, three words and optional message
     GET  /c/{id}/status      tiny JSON the page polls while the story is written
     GET  /c/{id}/card.png    shareable picture (title + closing line)
-    GET  /c/{id}/archive     past stories
+    GET  /c/{id}/archive     all stories, by month (?month=2026-11&style=fable to filter)
     GET  /c/{id}/d/{day}     one past story
     GET  /healthz            "ok" (used by the host to check the app is up)
 
@@ -24,11 +24,12 @@ from . import game, styles
 from .card import make_card
 from .config import settings
 from .filters import InputError
-from .questions import QUESTIONS, SENTENCE_ASK
+from .questions import QUESTIONS, QUOTE_ASK, QUOTE_HINT
 from .sample import sample_story
 
 HERE = Path(__file__).parent
 PLAYER_COOKIE = "sb_player"
+CIRCLES_COOKIE = "sb_circles"  # the circles this browser has opened
 ONE_YEAR = 60 * 60 * 24 * 365
 
 app = FastAPI(title="Story Board", docs_url=None, redoc_url=None)
@@ -60,6 +61,14 @@ def page(request: Request, name: str, status: int = 200, **context) -> HTMLRespo
 def _set_player_cookie(request: Request, response) -> None:
     response.set_cookie(PLAYER_COOKIE, request.state.player_id, max_age=ONE_YEAR,
                         httponly=True, samesite="lax", secure=request.url.scheme == "https")
+
+
+def remember_circle(request: Request, response, circle: dict):
+    """Keep this circle in the browser's "Your circles" list."""
+    ids = game.remembered_ids(request.cookies.get(CIRCLES_COOKIE), add=circle["id"])
+    response.set_cookie(CIRCLES_COOKIE, ".".join(ids), max_age=ONE_YEAR,
+                        httponly=True, samesite="lax", secure=request.url.scheme == "https")
+    return response
 
 
 @app.middleware("http")
@@ -94,6 +103,8 @@ def _home(request: Request, status: int = 200, form: dict | None = None, error: 
               if settings.min_people_limit <= n <= settings.max_people_limit]
     return page(request, "home.html", status=status, limits=limits, style_choices=styles.CHOICES,
                 form=form or {}, error=error, story=sample_story(), view=None,
+                your_circles=game.your_circles(request.cookies.get(CIRCLES_COOKIE),
+                                               request.state.player_id),
                 card_url=str(request.url_for("default_card")))
 
 
@@ -112,7 +123,8 @@ async def create_circle(request: Request):
         circle = game.create_circle(form.get("name"), form.get("people_limit"), form.get("style"))
     except InputError as err:
         return _home(request, 400, form, str(err))
-    return RedirectResponse(f"/c/{circle['id']}?new=1", status_code=303)
+    response = RedirectResponse(f"/c/{circle['id']}?new=1", status_code=303)
+    return remember_circle(request, response, circle)
 
 
 @app.get("/card.png")
@@ -158,14 +170,14 @@ async def add_words(request: Request, circle_id: str, background: BackgroundTask
 
 def _today_page(request, circle, view, status=200, form=None, errors=None) -> HTMLResponse:
     template = {"form": "words.html", "writing": "writing.html", "story": "story.html"}[view["phase"]]
-    return page(
+    return remember_circle(request, page(
         request, template, status=status,
         circle=circle, view=view, story=view["story"],
-        questions=QUESTIONS, sentence_ask=SENTENCE_ASK,
+        questions=QUESTIONS, quote_ask=QUOTE_ASK, quote_hint=QUOTE_HINT,
         form=form or {}, errors=errors or {},
         is_new=request.query_params.get("new") == "1",
         is_today=True, **circle_urls(request, circle),
-    )
+    ), circle)
 
 
 @app.get("/c/{circle_id}/status")
@@ -192,12 +204,14 @@ async def card(circle_id: str, day: str | None = None):
 # ---------- past stories ----------
 
 @app.get("/c/{circle_id}/archive", response_class=HTMLResponse)
-async def archive(request: Request, circle_id: str, background: BackgroundTasks):
+async def archive(request: Request, circle_id: str, background: BackgroundTasks,
+                  month: str | None = None, style: str | None = None):
     circle = game.get_circle(circle_id)
     if not circle:
         return not_found(request)
     catch_up(circle, background)
-    return page(request, "archive.html", circle=circle, stories=game.archive(circle),
+    listing = game.archive(circle, request.state.player_id, month, style)
+    return page(request, "archive.html", circle=circle, archive=listing,
                 **circle_urls(request, circle))
 
 

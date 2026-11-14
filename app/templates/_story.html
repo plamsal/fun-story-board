@@ -34,6 +34,18 @@
   <span class="chip dream">dream</span><span class="chip peace">peace</span><span class="chip love">love</span><span class="chip name">friend</span>
 </div>
 
+{% if story.quotes %}
+<section class="card quotes">
+  <h2>In their own words</h2>
+  {% for quote in story.quotes %}
+  <figure class="quote">
+    <blockquote>{{ quote.text }}</blockquote>
+    <figcaption>{{ quote.name }}</figcaption>
+  </figure>
+  {% endfor %}
+</section>
+{% endif %}
+
 {% if story.matches %}
 <section class="card matches">
   <h2>{{ 'You matched' if story.matches[0].mine else 'Friends who matched' }}</h2>

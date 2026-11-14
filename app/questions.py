@@ -1,7 +1,7 @@
 """The three daily questions.
 
 Each answer is ONE word, and each question feeds a different part of the story.
-There is also one optional sentence (SENTENCE_ASK, at the bottom).
+There is also one optional message to the circle (QUOTE_ASK, at the bottom).
 Edit the wording here; nothing else needs to change.
 
     key    column name in the database, and the colour used on the page
@@ -44,6 +44,8 @@ QUESTIONS = [
 
 KEYS = [q.key for q in QUESTIONS]
 
-# One optional extra: a sentence in the friend's own words. It is not
-# highlighted in the story; it shapes that friend's moment in it.
-SENTENCE_ASK = "One sentence: what would make today a good day?"
+# One more, optional: the friend's own message to the circle. It is shown on
+# the story page as a quote from them, and it shapes their moment in the story.
+# (It is stored in the `sentence` column.)
+QUOTE_ASK = "Your message to the circle today"
+QUOTE_HINT = "A thought, a wish, a line you believe in. Your friends will read it as a quote from you."
