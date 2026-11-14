@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Writing… · {{ circle.name }}{% endblock %}
+{% block body_attrs %}data-poll="writing" data-status-url="/c/{{ circle.id }}/status"{% endblock %}
+{% block content %}
+<p class="eyebrow">{{ view.date }}</p>
+<div class="writing">
+  <div class="quill" aria-hidden="true">✦</div>
+  <h1 class="pulse">{% if view.mine %}Writing you into the story…{% else %}Writing today's story…{% endif %}</h1>
+  {% if view.mine %}
+  <div class="chips center-row">
+    <span class="chip dream">{{ view.mine.dream }}</span>
+    <span class="chip peace">{{ view.mine.peace }}</span>
+    <span class="chip love">{{ view.mine.love }}</span>
+  </div>
+  {% endif %}
+  <p class="lede">This takes a few seconds. The page opens the story by itself.</p>
+  <p class="hint" id="slow" hidden>Still writing. If nothing happens, <a href="/c/{{ circle.id }}">reload the page</a>.</p>
+</div>
+{% endblock %}

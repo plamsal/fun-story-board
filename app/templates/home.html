@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Story Board: three words each, one story a day{% endblock %}
+{% block content %}
+<h1>Three words each.<br>One story a day.</h1>
+<p class="lede">Each friend adds three words. Together they become a short story of hope, love and boldness, with every friend in it. A good thing to read before the day begins.</p>
+
+<section class="card">
+  <h2>Start a circle</h2>
+  <form method="post" action="/circles" novalidate>
+    <div class="field">
+      <label for="name">Name your circle</label>
+      <input type="text" id="name" name="name" maxlength="40" placeholder="College friends"
+             value="{{ form.name or '' }}" autocomplete="off" required>
+    </div>
+    <div class="field">
+      <label for="people_limit">How many friends write each story?</label>
+      <select id="people_limit" name="people_limit">
+        {% for n in limits %}
+        <option value="{{ n }}" {% if (form.people_limit or '8') == n|string %}selected{% endif %}>{{ n }} friends</option>
+        {% endfor %}
+      </select>
+      <p class="hint">Each friend can read the story as soon as they add their words. It is final when this many friends are in.</p>
+    </div>
+    <p class="error" role="alert">{{ error }}</p>
+    <button type="submit" class="full">Create my circle</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>How it works</h2>
+  <ol class="steps">
+    <li>Answer three small questions with <strong>one word each</strong>: a dream, a peace, a love.</li>
+    <li>Read today's story right away. You are in it, and so are your words.</li>
+    <li>The story grows through the day as more friends add theirs.</li>
+    <li>Tomorrow morning, a new story begins.</li>
+  </ol>
+</section>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Past stories · {{ circle.name }}{% endblock %}
+{% block content %}
+<p class="eyebrow">{{ circle.name }}</p>
+<h1>Past stories</h1>
+{% if not stories %}
+<p class="lede">No finished days yet. Each day's story appears here the next morning.</p>
+{% else %}
+<section class="card">
+  <ul class="list">
+    {% for s in stories %}
+    <li>
+      <a href="/c/{{ circle.id }}/d/{{ s.day }}">
+        <span class="date">{{ s.date }} · {{ s.people }} {{ 'friend' if s.people == 1 else 'friends' }}</span>
+        <span class="list-title">{{ s.title }}</span>
+        <span class="preview">{{ s.preview }}…</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

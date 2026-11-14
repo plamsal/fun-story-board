@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ story.title }} · {{ circle.name }}{% endblock %}
+{% block body_class %}reading{% endblock %}
+{% block body_attrs %}{% if view and not view.full %}data-poll="growing" data-status-url="/c/{{ circle.id }}/status" data-version="{{ story.version }}"{% endif %}{% endblock %}
+{% block content %}
+<p class="eyebrow">{{ story.date }} · {{ circle.name }}</p>
+{% if view and view.mine %}<p class="greeting">{{ view.greeting }}, {{ view.mine.name }}.</p>{% endif %}
+
+<div class="update" id="update" hidden>
+  <span>A friend joined. The story has grown.</span>
+  <a class="button small" href="/c/{{ circle.id }}">Read the new version</a>
+</div>
+
+<article class="story-page">
+  <div class="ornament" aria-hidden="true">✦</div>
+  <h1 class="story-title">{{ story.title }}</h1>
+  <p class="byline">A story for {{ story.people | map(attribute='name') | and_join }}</p>
+
+  <div class="story">
+    {% for paragraph in story.paragraphs %}
+    <p class="{% if loop.first and paragraph[0].type == 'text' %}dropcap{% endif %}" style="--i: {{ loop.index0 }}">
+      {%- for piece in paragraph -%}
+        {%- if piece.type == 'word' -%}
+          <mark class="{{ piece.kind }}" tabindex="0" role="button" data-credit="{{ piece.credit }}">{{ piece.text }}</mark>
+        {%- elif piece.type == 'name' -%}
+          <mark class="name" tabindex="0" role="button" data-credit="{{ piece.credit }}">{{ piece.text }}</mark>
+        {%- else -%}
+          {{ piece.text }}
+        {%- endif -%}
+      {%- endfor -%}
+    </p>
+    {% endfor %}
+  </div>
+
+  {% if story.closing %}
+  <aside class="closing" style="--i: {{ story.paragraphs | length }}">
+    <span class="closing-label">Carry this into your day</span>
+    <p>{{ story.closing }}</p>
+  </aside>
+  {% endif %}
+
+  <p class="credit" id="credit" aria-live="polite">Tap a highlighted word or name to see whose it is.</p>
+</article>
+
+<div class="legend">
+  <span class="chip dream">dream</span><span class="chip peace">peace</span><span class="chip love">love</span><span class="chip name">friend</span>
+</div>
+
+{% if view %}
+<section class="card">
+  {% if view.full %}
+  <h2>All {{ view.limit }} friends are in.</h2>
+  <p class="muted">This is today's finished story. A new one starts tomorrow morning.</p>
+  {% else %}
+  <h2>{{ view.people }} of {{ view.limit }} friends so far</h2>
+  <div class="meter"><div style="width: {{ (100 * view.people / view.limit) | round | int }}%"></div></div>
+  <p class="muted">The story is rewritten each time a friend adds their words, so come back later to see how it grows.</p>
+  {% endif %}
+  <button type="button" class="ghost" data-share="{{ share_url }}">Invite friends</button>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Who gave what</h2>
+  <ul class="people">
+    {% for person in story.people %}
+    <li>
+      <span class="who">{{ person.name }}</span>
+      <span class="chips">
+        <span class="chip dream">{{ person.dream }}</span>
+        <span class="chip peace">{{ person.peace }}</span>
+        <span class="chip love">{{ person.love }}</span>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

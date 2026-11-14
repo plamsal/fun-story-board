@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Story Board{% endblock %}</title>
+  {% set og_title = (circle.name ~ ": add three words, read today's story") if circle else "Story Board: three words each, one story a day" %}
+  <meta name="description" content="Add three words about your day and read a short, uplifting story written from your circle's words.">
+  <meta property="og:title" content="{{ og_title }}">
+  <meta property="og:description" content="Three words from each friend become one short story of hope, love and boldness. Add yours.">
+  <meta property="og:type" content="website">
+  {% if share_url %}<meta property="og:url" content="{{ share_url }}">{% endif %}
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="{% block body_class %}{% endblock %}" {% block body_attrs %}{% endblock %}>
+  <main class="page">
+    <header class="top">
+      <a class="brand" href="/">Story Board</a>
+      {% if circle %}
+      <nav>
+        {% if not is_today %}<a href="/c/{{ circle.id }}">Today</a>{% endif %}
+        <a href="/c/{{ circle.id }}/archive">Past stories</a>
+      </nav>
+      {% endif %}
+    </header>
+    {% block content %}{% endblock %}
+  </main>
+  <script src="/static/js/story.js" defer></script>
+</body>
+</html>

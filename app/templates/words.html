@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ circle.name }} · Story Board{% endblock %}
+{% block content %}
+{% if is_new %}
+<section class="card share-card">
+  <p class="eyebrow">Your circle is ready</p>
+  <p>Share this link with your friends. It stays the same every day.</p>
+  <div class="linkbox">{{ share_url }}</div>
+  <button type="button" class="ghost" data-share="{{ share_url }}">Copy link</button>
+</section>
+{% endif %}
+
+<p class="eyebrow">{{ view.date }}</p>
+<h1>{{ circle.name }}</h1>
+<p class="lede">
+  {% if view.people == 0 %}Be the first to add three words. Your story is written the moment you do.
+  {% elif view.people == 1 %}1 friend is in today's story. Add three words to join and read it.
+  {% else %}{{ view.people }} friends are in today's story. Add three words to join and read it.{% endif %}
+</p>
+
+<form class="card" method="post" action="/c/{{ circle.id }}/words" novalidate>
+  {% if errors.form %}<p class="error" role="alert">{{ errors.form }}</p>{% endif %}
+
+  {% for q in questions %}
+  <div class="field">
+    <span class="tag {{ q.key }}">{{ q.label }}</span>
+    <label for="{{ q.key }}">{{ q.ask }}</label>
+    <input type="text" id="{{ q.key }}" name="{{ q.key }}" maxlength="20" placeholder="one word"
+           value="{{ form[q.key] or '' }}" autocomplete="off" autocapitalize="none" spellcheck="false"
+           {% if errors[q.key] %}aria-invalid="true" autofocus{% endif %} required>
+    {% if errors[q.key] %}<p class="error" role="alert">{{ errors[q.key] }}</p>{% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="field">
+    <span class="tag name">You</span>
+    <label for="name">Your first name, so the story can include you</label>
+    <input type="text" id="name" name="name" maxlength="24" placeholder="First name"
+           value="{{ form.name or '' }}" autocomplete="given-name" autocapitalize="words"
+           {% if errors.name %}aria-invalid="true" autofocus{% endif %} required>
+    {% if errors.name %}<p class="error" role="alert">{{ errors.name }}</p>{% endif %}
+  </div>
+
+  <button type="submit" class="full">Write me into today's story</button>
+  <p class="hint center">Your name and words are shared with your circle and used to write the story.</p>
+</form>
+{% endblock %}
