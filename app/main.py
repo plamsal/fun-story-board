@@ -124,6 +124,7 @@ def _home(request: Request, status: int = 200, form: dict | None = None, error: 
               if settings.min_people_limit <= n <= settings.max_people_limit]
     return page(request, "home.html", status=status, limits=limits, style_choices=styles.CHOICES,
                 form=form or {}, error=error, story=sample_story(), view=None,
+                csrf_token=admin.csrf_token(request.cookies[admin.COOKIE]) if request.state.is_admin else "",
                 your_circles=game.your_circles(request.cookies.get(CIRCLES_COOKIE),
                                                request.state.player_id),
                 card_url=str(request.url_for("default_card")))
@@ -136,6 +137,14 @@ async def home(request: Request):
 
 @app.post("/circles")
 async def create_circle(request: Request):
+    if not request.state.is_admin:
+        return page(request, "problem.html", status=403, title="Admin access required",
+                    message="Only the admin can create circles. Open your invitation to join an existing circle.")
+    form_data = await request.form()
+    expected = admin.csrf_token(request.cookies[admin.COOKIE])
+    if not hmac.compare_digest(str(form_data.get("csrf_token", "")).encode(), expected.encode()):
+        return page(request, "problem.html", status=403, title="Please refresh",
+                    message="Refresh the home page and try again.")
     form = dict(await request.form())
     visitor = request.client.host if request.client else "unknown"
     if not game.allow_new_circle(visitor):
@@ -201,6 +210,8 @@ async def add_words(request: Request, circle_id: str, background: BackgroundTask
 
 
 def _today_page(request, circle, view, status=200, form=None, errors=None) -> HTMLResponse:
+    if request.query_params.get("answer") == "1" and not view["mine"] and not view["full"]:
+        view = {**view, "phase": "form"}
     template = {"form": "words.html", "writing": "writing.html", "story": "story.html"}[view["phase"]]
     return remember_circle(request, page(
         request, template, status=status,

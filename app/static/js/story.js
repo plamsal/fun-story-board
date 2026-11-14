@@ -104,6 +104,6 @@ if (poll === 'form') {
     const status = await check();
     const count = document.getElementById('participant-count');
     if (status && count) count.textContent = `${status.people} of ${count.dataset.limit} friends have joined today.`;
-    if (status && status.phase !== 'form') location.reload();
+    // Keep unfinished answers in place even when a story is already available.
   }, 5000);
 }

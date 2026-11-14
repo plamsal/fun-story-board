@@ -239,7 +239,7 @@ def today_view(circle: dict, player_id: str | None, is_admin: bool = False) -> d
     version = saved["people"] if saved else 0
     full = people >= limit
 
-    if is_admin and saved:
+    if saved and not mine:
         phase = "story"
     elif mine:
         # Ready once the story includes this friend.

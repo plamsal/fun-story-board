@@ -16,6 +16,9 @@
   <a class="button small" href="/c/{{ circle.id }}">Read the new version</a>
 </div>
 
+{% if view and not view.mine and not view.full and not circle.archived %}
+<section class="card"><h2>There’s room for your perspective</h2><p>Read your friends’ story below, then add your words to become part of it.</p><a class="button" href="/c/{{ circle.id }}?answer=1">Add my answers</a></section>
+{% endif %}
 {% include "_story.html" %}
 
 {% if view %}
