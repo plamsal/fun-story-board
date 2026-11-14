@@ -13,7 +13,7 @@
   <div><strong>{{ data.totals.stories }}</strong> stories</div>
 </div>
 
-<h2 class="month-title">Circles</h2>
+<h2 class="month-title">Circles</h2><p class="muted">Archive old circles to pause new answers and hide them from the home page. Stories and research data are kept. Restore anytime.</p>
 <section class="card table-card">
   <table class="table">
     <thead><tr><th>Circle</th><th>Style</th><th>People</th><th>Entries</th><th>Days</th><th>Last active</th><th></th></tr></thead>
@@ -26,7 +26,10 @@
         <td>{{ c.entries }}</td>
         <td>{{ c.days }}</td>
         <td>{{ c.last_day or "never" }}</td>
-        <td><a href="/c/{{ c.id }}">Open / invite</a> · <a href="/c/{{ c.id }}/archive">stories</a></td>
+        <td><form method="post" action="/admin/circles/{{ c.id }}/archive">
+          <input type="hidden" name="archived" value="{{ 0 if c.archived else 1 }}">
+          <button class="ghost small" type="submit">{{ 'Restore circle' if c.archived else 'Archive circle' }}</button>
+        </form><a href="/c/{{ c.id }}">Open / invite</a> · <a href="/c/{{ c.id }}/archive">stories</a></td>
       </tr>
       {% endfor %}
     </tbody>

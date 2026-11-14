@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Story Board: a few words each, one story a day{% endblock %}
 {% block content %}
-<h1>A few words each.<br>One story a day.</h1>
+<p class="eyebrow">A daily ritual with your favorite people</p><h1>Your words.<br>Our little story.</h1>
 <p class="lede">Each friend answers a few small questions about what they hope for and what gets them through, in a word or a sentence. Together they become a short story of hope, love and boldness, with every friend in it. A good thing to read before the day begins.</p>
 
 <p class="row">
@@ -30,7 +30,12 @@
 </section>
 {% endif %}
 
-<h2 class="section-title" id="sample">Here is what comes out</h2>
+<section class="benefits" aria-label="Your daily experience">
+<div><span>01 · CREATE</span><h2>A story starring you</h2><p>A little imagination, a little laughter, and a piece of everyone.</p></div>
+<div><span>02 · CONNECT</span><h2>See their perspective</h2><p>Discover what your friends hope for and what keeps them going.</p></div>
+<div><span>03 · TAKE WITH YOU</span><h2>A brighter moment</h2><p>A motivating closing thought and your daily lucky number, just for fun.</p></div>
+</section>
+<h2 class="section-title" id="sample">A taste of the magic</h2>
 <p class="muted">Asha, Ben and Cai each answered the questions. This is the story they read. Tap a highlighted word to see whose it is.</p>
 <div class="sample">
 {% include "_story.html" %}
