@@ -172,6 +172,8 @@ async def today(request: Request, circle_id: str, background: BackgroundTasks):
     circle = game.get_circle(circle_id)
     if not circle:
         return not_found(request)
+    if circle["archived"]:
+        return RedirectResponse(f"/c/{circle_id}/archive", status_code=303)
     catch_up(circle, background)
     view = game.today_view(circle, request.state.player_id, request.state.is_admin)
     return _today_page(request, circle, view)
@@ -183,6 +185,9 @@ async def add_words(request: Request, circle_id: str, background: BackgroundTask
     if not circle:
         return not_found(request)
 
+    if circle["archived"]:
+        return page(request, "problem.html", status=409, title="This circle is archived",
+                    message="Its past stories are still available. New answers are paused.")
     form = dict(await request.form())
     errors = game.add_words(circle, request.state.player_id, form)
     if errors:
@@ -299,3 +304,17 @@ async def admin_logout():
     response = RedirectResponse("/admin", status_code=303)
     response.delete_cookie(admin.COOKIE)
     return response
+
+
+@app.post("/admin/circles/{circle_id}/archive")
+async def admin_archive_circle(request: Request, circle_id: str):
+    if not admin.is_signed_in(request.cookies.get(admin.COOKIE)):
+        return Response(status_code=403)
+    origin = request.headers.get("origin")
+    if origin and origin != str(request.base_url).rstrip("/"):
+        return Response(status_code=403)
+    if not game.get_circle(circle_id):
+        return not_found(request)
+    form = await request.form()
+    db.set_circle_archived(circle_id, form.get("archived") == "1")
+    return RedirectResponse("/admin", status_code=303)

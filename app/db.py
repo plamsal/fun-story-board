@@ -111,6 +111,7 @@ _TABLES = [
 
 # Columns added after the first version. Older databases get them on startup.
 _ADDED_COLUMNS = [
+    ("circles", "archived", "INTEGER NOT NULL DEFAULT 0"),
     ("circles", "invite_token", "TEXT NOT NULL DEFAULT ''"),
     ("circles", "style", "TEXT NOT NULL DEFAULT 'classic'"),
     ("contributions", "sentence", "TEXT NOT NULL DEFAULT ''"),
@@ -165,7 +166,7 @@ def insert_circle(circle_id: str, name: str, people_limit: int, style: str = "cl
 
 
 def get_circle(circle_id: str) -> dict | None:
-    return _one("SELECT id, name, people_limit, style, invite_token FROM circles WHERE id = ?", circle_id)
+    return _one("SELECT id, name, people_limit, style, invite_token, archived FROM circles WHERE id = ?", circle_id)
 
 
 def list_circles(circle_ids: list[str], day: str, player_id: str) -> list[dict]:
@@ -179,7 +180,7 @@ def list_circles(circle_ids: list[str], day: str, player_id: str) -> list[dict]:
                      WHERE x.circle_id = c.id AND x.day = ?) AS people,
                    (SELECT COUNT(*) FROM contributions x
                      WHERE x.circle_id = c.id AND x.day = ? AND x.player_id = ?) AS mine
-            FROM circles c WHERE c.id IN ({marks})""",
+            FROM circles c WHERE c.archived = 0 AND c.id IN ({marks})""",
         day, day, player_id, *circle_ids,
     )
 
@@ -312,13 +313,13 @@ def admin_totals() -> dict:
 def admin_circles() -> list[dict]:
     """Every circle with how much it has been used, most recently active first."""
     return _all(
-        """SELECT c.id, c.name, c.style, c.people_limit,
+        """SELECT c.id, c.name, c.style, c.people_limit, c.archived,
                   COUNT(x.id) AS entries,
                   COUNT(DISTINCT x.day) AS days,
                   COUNT(DISTINCT x.player_id) AS people,
                   MAX(x.day) AS last_day
            FROM circles c LEFT JOIN contributions x ON x.circle_id = c.id
-           GROUP BY c.id, c.name, c.style, c.people_limit
+           GROUP BY c.id, c.name, c.style, c.people_limit, c.archived
            ORDER BY (MAX(x.day) IS NULL), MAX(x.day) DESC, c.name"""
     )
 
@@ -352,3 +353,7 @@ def join_circle(circle_id: str, player_id: str) -> None:
 def is_circle_member(circle_id: str, player_id: str) -> bool:
     return bool(_one("SELECT 1 AS joined FROM circle_members WHERE circle_id = ? AND player_id = ?",
                      circle_id, player_id))
+
+
+def set_circle_archived(circle_id: str, archived: bool) -> None:
+    _all("UPDATE circles SET archived = ? WHERE id = ?", int(archived), circle_id)
